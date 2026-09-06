@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0d0805">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sun-Stone League">
+  <title>Sun-Stone League — Pok-Ta-Pok</title>
+  <link rel="stylesheet" href="./src/styles/main.css">
+</head>
+<body>
+  <div id="app">
+    <canvas id="game-canvas"></canvas>
+
+    <div id="loading">
+      <div>ENTERING THE BALLCOURT…</div>
+      <div class="bar-track"><div class="bar-fill" id="loadbar"></div></div>
+    </div>
+
+    <div id="menu" class="overlay">
+      <div class="panel">
+        <div class="eyebrow">A POK-TA-POK INSPIRED GAME</div>
+        <h1>SUN-STONE<br>LEAGUE</h1>
+        <p>Strike the sacred rubber ball through the vertical stone ring.</p>
+        <button class="mode-btn" data-mode="solo"><strong>Solo Challenge</strong><span>Score as many rings as you can in 60 seconds</span></button>
+        <button class="mode-btn" data-mode="versus"><strong>1v1 vs Rival</strong><span>First warrior to score 3 rings wins</span></button>
+        <div class="controls-copy">WASD / arrows to move · mouse to aim · Space to strike</div>
+      </div>
+    </div>
+
+    <div id="countdown" class="overlay"><div id="countdown-value">3</div></div>
+
+    <div id="hud" class="hidden">
+      <div class="score-block"><div class="score-label" id="player-label">You</div><div class="score-value" id="score-player">0</div></div>
+      <div id="timer-block"><div class="score-label" id="center-label">Time</div><div class="score-value" id="center-value">60</div></div>
+      <div class="score-block" id="rival-score"><div class="score-label">Rival</div><div class="score-value" id="score-ai">0</div></div>
+    </div>
+
+    <div id="hint" class="hidden">Move close to the ball and strike toward the sun-stone ring</div>
+
+    <div id="touch-controls" class="hidden">
+      <div id="joystick"><div id="joystick-knob"></div></div>
+      <button id="hit-btn" aria-label="Strike the ball">STRIKE</button>
+    </div>
+
+    <div id="endscreen" class="overlay">
+      <div class="panel compact">
+        <div class="eyebrow" id="end-mode">MATCH COMPLETE</div>
+        <h1 id="end-title">VICTORY</h1>
+        <p id="end-sub"></p>
+        <button id="restart-btn">Play Again</button>
+        <button id="menu-btn" class="secondary">Choose Mode</button>
+      </div>
+    </div>
+
+    <div id="webgl-error" class="overlay"><div class="panel"><h1>WebGL Unavailable</h1><p>Please open this game in a modern browser.</p></div></div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
