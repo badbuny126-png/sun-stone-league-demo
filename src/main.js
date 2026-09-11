@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createCourt, updateCourt, addLighting, COURT_WIDTH, COURT_LENGTH } from './court.js';
+import { createCourt, loadArenaModel, updateCourt, addLighting, COURT_WIDTH, COURT_LENGTH } from './court.js';
 import { loadCharacters, animateCharacter } from './characters.js';
 import { createBall, updateBallVisual, BallState } from './ball.js';
 import { setupInput, isMoveKeyDown, getMoveVector } from './input.js';
@@ -32,7 +32,7 @@ addEventListener('resize', () => {
 });
 
 addLighting(scene);
-const { ringMesh, ringWorldPos, arena } = createCourt(scene);
+const { ringMesh, ringWorldPos, arena, fallbackDecor } = createCourt(scene);
 const ballMesh = createBall(scene);
 const ballState = new BallState();
 
@@ -40,6 +40,11 @@ const manager = new THREE.LoadingManager();
 manager.onProgress = (_url, loaded, total) => { $('loadbar').style.width = `${Math.round(loaded / total * 100)}%`; };
 manager.onLoad = () => { $('loading').classList.add('depart'); setTimeout(() => { $('loading').style.display = 'none'; }, 450); };
 manager.onError = () => { $('loading-note').textContent = 'Using optimized arena warrior'; };
+
+loadArenaModel(arena, fallbackDecor, manager).catch(() => {
+  fallbackDecor.visible = true;
+  $('loading-note').textContent = 'Arena fallback active';
+});
 
 let playerChar = null, aiChar = null, playerRig = null, aiRig = null;
 const STRIKER_MODEL = 'https://raw.githubusercontent.com/badbuny126-png/-poca-tok-2026/main/public/models/player.glb';
