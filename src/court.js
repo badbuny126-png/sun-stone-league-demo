@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 
 export const COURT_LENGTH = 32;
 export const COURT_WIDTH = 14;
@@ -159,22 +160,25 @@ export function createCourt(scene) {
   const group = new THREE.Group();
   group.name = 'SunStoneArena';
   scene.add(group);
+  const fallbackDecor = new THREE.Group();
+  fallbackDecor.name = 'ProceduralArenaFallback';
+  group.add(fallbackDecor);
   const mats = [stoneMaterial(palette.sandstone), stoneMaterial(palette.lightStone), stoneMaterial(palette.darkStone)];
 
   const floorMat = new THREE.MeshStandardMaterial({ map: createFloorTexture(), color: 0xffffff, roughness: .88, metalness: 0 });
   box(group, [COURT_WIDTH, .45, COURT_LENGTH], [0, -.23, 0], floorMat);
   addCourtMarkings(group);
-  addSteppedSide(group, 1, mats);
-  addSteppedSide(group, -1, mats);
-  box(group, [COURT_WIDTH + 6, 3.8, 1.3], [0, 1.9, -COURT_LENGTH / 2 - .65], mats[0]);
-  box(group, [COURT_WIDTH + 6, 3.8, 1.3], [0, 1.9, COURT_LENGTH / 2 + .65], mats[0]);
+  addSteppedSide(fallbackDecor, 1, mats);
+  addSteppedSide(fallbackDecor, -1, mats);
+  box(fallbackDecor, [COURT_WIDTH + 6, 3.8, 1.3], [0, 1.9, -COURT_LENGTH / 2 - .65], mats[0]);
+  box(fallbackDecor, [COURT_WIDTH + 6, 3.8, 1.3], [0, 1.9, COURT_LENGTH / 2 + .65], mats[0]);
 
-  addTemple(group, -25, .9, mats);
+  addTemple(fallbackDecor, -25, .9, mats);
   const rightTemple = new THREE.Group();
   rightTemple.position.x = 18;
-  group.add(rightTemple);
-  addCrowd(group);
-  [[-5.4,-11],[-5.4,11],[5.4,-11],[5.4,11]].forEach(([x,z]) => addTorch(group,x,z));
+  fallbackDecor.add(rightTemple);
+  addCrowd(fallbackDecor);
+  [[-5.4,-11],[-5.4,11],[5.4,-11],[5.4,11]].forEach(([x,z]) => addTorch(fallbackDecor,x,z));
 
   const ringGroup = new THREE.Group();
   const ringMat = new THREE.MeshStandardMaterial({ color: palette.gold, roughness: .28, metalness: .55, emissive: 0x7d2d00, emissiveIntensity: .55 });
@@ -195,7 +199,61 @@ export function createCourt(scene) {
 
   const ringWorldPos = new THREE.Vector3();
   ringMesh.getWorldPosition(ringWorldPos);
-  return { ringMesh, ringWorldPos, arena: group };
+  return { ringMesh, ringWorldPos, arena: group, fallbackDecor };
+}
+
+export async function loadArenaModel(arena, fallbackDecor, manager) {
+  const textureLoader = new THREE.TextureLoader(manager);
+  const objLoader = new OBJLoader(manager);
+  const [model, albedo, normal, roughness] = await Promise.all([
+    objLoader.loadAsync('./assets/arena/arena.obj'),
+    textureLoader.loadAsync('./assets/arena/arena_albedo.webp'),
+    textureLoader.loadAsync('./assets/arena/arena_normal.webp'),
+    textureLoader.loadAsync('./assets/arena/arena_roughness.webp'),
+  ]);
+
+  albedo.colorSpace = THREE.SRGBColorSpace;
+  for (const texture of [albedo, normal, roughness]) {
+    texture.anisotropy = 4;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+  }
+
+  const arenaMaterial = new THREE.MeshStandardMaterial({
+    map: albedo,
+    normalMap: normal,
+    roughnessMap: roughness,
+    normalScale: new THREE.Vector2(.68, .68),
+    color: 0xffffff,
+    roughness: .92,
+    metalness: .01,
+  });
+  model.name = 'ImportedMayanArena';
+  model.rotation.y = Math.PI / 2;
+  model.traverse((object) => {
+    if (!object.isMesh) return;
+    object.material = arenaMaterial;
+    object.castShadow = false;
+    object.receiveShadow = true;
+    if (!object.geometry.attributes.normal) object.geometry.computeVertexNormals();
+  });
+
+  model.updateMatrixWorld(true);
+  let bounds = new THREE.Box3().setFromObject(model);
+  const size = bounds.getSize(new THREE.Vector3());
+  const scale = 35 / Math.max(size.z, .001);
+  model.scale.setScalar(scale);
+  model.updateMatrixWorld(true);
+  bounds = new THREE.Box3().setFromObject(model);
+  const center = bounds.getCenter(new THREE.Vector3());
+  model.position.x -= center.x;
+  model.position.z -= center.z;
+  model.position.y -= bounds.min.y + .06;
+  model.updateMatrixWorld(true);
+
+  arena.add(model);
+  fallbackDecor.visible = false;
+  return model;
 }
 
 export function updateCourt(arena, time) {
