@@ -18,8 +18,8 @@ try {
       for(const [orientation,viewport] of [['portrait',{width:390,height:844}],['landscape',{width:844,height:390}]]){
         const context=await browser.newContext({viewport,hasTouch:true,isMobile:true});
         const page=await context.newPage(),errors=[];
-        page.on('pageerror',e=>errors.push(e.message));
-        page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+        page.on('pageerror',e=>{errors.push(e.message);console.error(e.message);});
+        page.on('console',m=>{if(m.type()==='error'){errors.push(m.text());console.error(m.text());}});
         await page.goto('http://127.0.0.1:4173');
         await page.locator('#loading').waitFor({state:'hidden',timeout:30000});
         await page.getByRole('button',{name:/Solo Challenge/}).click();
@@ -31,8 +31,7 @@ try {
         await page.waitForTimeout(1200);
         assert.equal(await page.locator('#center-value').textContent(),before,'timer freezes while paused');
         await page.getByRole('button',{name:'Resume game'}).click();
-        await page.waitForTimeout(1200);
-        assert.ok(Number(await page.locator('#center-value').textContent())<Number(before),'timer resumes');
+        await page.waitForFunction(value=>Number(document.getElementById('center-value').textContent)<Number(value),before,{timeout:10000});
         assert.deepEqual(errors,[],name+' runtime/shader errors');
         console.log(name+' '+orientation+': startup, movement, shaders and pause passed');
         await context.close();

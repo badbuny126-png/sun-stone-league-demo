@@ -139,6 +139,7 @@ function beginCountdown() {
 function togglePause(force) {
   if(!['playing','countdown','goal'].includes(phase))return;
   paused=typeof force==='boolean'?force:!paused;
+  clock.getDelta(); // Discard elapsed time while focus/visibility changes.
   Input.resetInput();$('pause-screen').style.display=paused?'flex':'none';if(!paused)canvas.focus();
 }
 $('pause-btn').addEventListener('click',()=>togglePause());
@@ -254,22 +255,23 @@ function updateCamera(dt) {
 
 function tick() {
   requestAnimationFrame(tick);
-  const frameDt=Math.min(clock.getDelta(),.1),dt=paused?0:frameDt;
+  const rawDelta=clock.getDelta();
+  const frameDt=Math.min(rawDelta,.1),dt=paused?0:frameDt,wallDt=paused?0:rawDelta;
   elapsed+=dt;
   if(phase==='countdown'&&!paused) {
-    countdownTime-=dt;
+    countdownTime-=wallDt;
     $('countdown-value').textContent=countdownTime>.5?Math.ceil(countdownTime):'PLAY';
     if(countdownTime<=0){$('countdown').style.display='none';phase='playing';}
   }
   if(phase==='goal'&&!paused) {
-    goalTime-=dt;
+    goalTime-=wallDt;
     if(goalTime<=0) {
       if(mode==='versus'&&Math.max(scorePlayer,scoreAI)>=TARGET_SCORE)finishGame();
       else{resetPositions();phase='playing';}
     }
   }
   if(phase==='playing'&&!paused) {
-    if(mode==='solo'){timeLeft=Math.max(0,timeLeft-dt);if(timeLeft===0)finishGame();}
+    if(mode==='solo'){timeLeft=Math.max(0,timeLeft-wallDt);if(timeLeft===0)finishGame();}
     if(phase==='playing'){
       updatePlayer(dt);updateAI(dt);
       if(ballState.update(dt,ringWorldPos))registerScore();
