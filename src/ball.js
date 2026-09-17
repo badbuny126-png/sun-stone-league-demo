@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { COURT_WIDTH, COURT_LENGTH, RING_RADIUS } from './court.js';
+import { COURT_WIDTH, COURT_LENGTH, RING_RADIUS, RING_TUBE } from './court.js';
 
 export const BALL_RADIUS = .43;
-const GRAVITY = -17;
+export const GRAVITY = -17;
 const RESTITUTION = .67;
 
 function glowTexture() {
@@ -78,33 +78,62 @@ export class BallState {
     this.vel.set((Math.random() - .5) * 1.4, 1.6, (Math.random() - .5) * 1.4);
     this.previousX = this.pos.x;
     this.justBounced = false;
+    this.heldCooldown=0; this.pendingPass=0; this.scored=false;
   }
 
-  update(dt, ringWorldPos) {
-    this.previousX = this.pos.x;
-    this.justBounced = false;
-    this.vel.y += GRAVITY * dt;
-    this.pos.addScaledVector(this.vel, dt);
-    this.heldCooldown = Math.max(0, this.heldCooldown - dt);
-
-    if (this.pos.y < BALL_RADIUS) {
-      this.pos.y = BALL_RADIUS;
-      if (this.vel.y < 0) {
-        this.vel.y *= -RESTITUTION;
-        this.vel.x *= .88; this.vel.z *= .88;
-        this.justBounced = Math.abs(this.vel.y) > 2.2;
-        if (Math.abs(this.vel.y) < .65) this.vel.y = 0;
+  update(dt,ring) {
+    if(this.scored)return false;
+    const steps=Math.max(1,Math.ceil(dt/(1/120)));
+    for(let i=0;i<steps;i++)if(this.step(dt/steps,ring))return true;
+    return false;
+  }
+  step(dt,ring) {
+    const previous=this.pos.clone();
+    this.justBounced=false;
+    this.pos.addScaledVector(this.vel,dt);
+    this.pos.y+=.5*GRAVITY*dt*dt;this.vel.y+=GRAVITY*dt;
+    this.heldCooldown=Math.max(0,this.heldCooldown-dt);
+    if(this.pos.y<BALL_RADIUS) {
+      this.pos.y=BALL_RADIUS;
+      if(this.vel.y<0) {
+        this.justBounced=this.vel.y < -2.2;
+        this.vel.y=Math.abs(this.vel.y)>.8?-this.vel.y*RESTITUTION:0;
+      }
+      const drag=Math.exp(-2.5*dt);this.vel.x*=drag;this.vel.z*=drag;
+    }
+    const radial=new THREE.Vector3(0,this.pos.y-ring.y,this.pos.z-ring.z);
+    const radius=radial.length();
+    // At the exact centre every point on the torus centreline is equally near.
+    // Clamping the divisor would incorrectly create a solid obstacle in the hole.
+    const closest=radius<1e-8
+      ? new THREE.Vector3(0,RING_RADIUS,0).add(ring)
+      : radial.multiplyScalar(RING_RADIUS/radius).add(ring);
+    const normal=this.pos.clone().sub(closest),separation=normal.length();
+    if(separation<BALL_RADIUS+RING_TUBE) {
+      if(separation<1e-8)normal.set(Math.sign(previous.x-ring.x)||-1,0,0);
+      else normal.multiplyScalar(1/separation);
+      this.pos.copy(closest).addScaledVector(normal,BALL_RADIUS+RING_TUBE+.001);
+      const speed=this.vel.dot(normal);
+      if(speed<0)this.vel.addScaledVector(normal,-(1+RESTITUTION)*speed);
+      this.pendingPass=0;
+    } else {
+      const dx=this.pos.x-previous.x;
+      if(dx && (previous.x-ring.x)*(this.pos.x-ring.x)<=0) {
+        const t=(ring.x-previous.x)/dx;
+        const y=THREE.MathUtils.lerp(previous.y,this.pos.y,t),z=THREE.MathUtils.lerp(previous.z,this.pos.z,t);
+        if(Math.hypot(y-ring.y,z-ring.z)<RING_RADIUS-RING_TUBE-BALL_RADIUS)this.pendingPass=Math.sign(dx);
+      }
+      if(this.pendingPass && (this.pos.x-ring.x)*this.pendingPass>BALL_RADIUS+RING_TUBE) {
+        this.scored=true;return true;
+      }
+      if(this.pendingPass && this.vel.x*this.pendingPass<=0)this.pendingPass=0;
+    }
+    for(const [axis,half] of [['x',COURT_WIDTH/2-BALL_RADIUS],['z',COURT_LENGTH/2-BALL_RADIUS]]) {
+      if(Math.abs(this.pos[axis])>half) {
+        this.pos[axis]=Math.sign(this.pos[axis])*half;this.vel[axis]*=-RESTITUTION;
+        this.justBounced=true;this.pendingPass=0;
       }
     }
-    const halfW = COURT_WIDTH / 2 - BALL_RADIUS;
-    if (this.pos.x > halfW) { this.pos.x = halfW; this.vel.x *= -RESTITUTION; this.justBounced = true; }
-    if (this.pos.x < -halfW) { this.pos.x = -halfW; this.vel.x *= -RESTITUTION; this.justBounced = true; }
-    const halfL = COURT_LENGTH / 2 - BALL_RADIUS;
-    if (this.pos.z > halfL) { this.pos.z = halfL; this.vel.z *= -RESTITUTION; this.justBounced = true; }
-    if (this.pos.z < -halfL) { this.pos.z = -halfL; this.vel.z *= -RESTITUTION; this.justBounced = true; }
-
-    const crossed = (this.previousX < ringWorldPos.x && this.pos.x >= ringWorldPos.x) || (this.previousX > ringWorldPos.x && this.pos.x <= ringWorldPos.x);
-    const apertureDistance = Math.hypot(this.pos.y - ringWorldPos.y, this.pos.z - ringWorldPos.z);
-    return crossed && apertureDistance < RING_RADIUS - BALL_RADIUS * .55 && this.heldCooldown <= 0;
+    return false;
   }
 }

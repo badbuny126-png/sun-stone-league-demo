@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { createCourt, loadArenaModel, updateCourt, addLighting, COURT_WIDTH, COURT_LENGTH } from './court.js';
 import { loadCharacters, animateCharacter } from './characters.js';
 import { createBall, updateBallVisual, BallState } from './ball.js';
-import { setupInput, isMoveKeyDown, getMoveVector } from './input.js';
+import { setupInput, getMoveVector } from './input.js';
 import * as Input from './input.js';
+import { shotVelocity } from './shot.js';
 
 const $ = (id) => document.getElementById(id);
 function hasWebGL() {
@@ -19,15 +20,16 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.18;
+renderer.toneMappingExposure = 1.05;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0x6f3a23, .011);
-const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, .1, 180);
+scene.fog = new THREE.FogExp2(0xaab3ac, .004);
+const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, .1, 400);
 camera.position.set(0, 4.5, 8);
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
+  renderer.setPixelRatio(Math.min(devicePixelRatio,matchMedia('(pointer: coarse)').matches?1.35:1.8));
   renderer.setSize(innerWidth, innerHeight);
 });
 
@@ -38,20 +40,24 @@ const ballState = new BallState();
 
 const manager = new THREE.LoadingManager();
 manager.onProgress = (_url, loaded, total) => { $('loadbar').style.width = `${Math.round(loaded / total * 100)}%`; };
-manager.onLoad = () => { $('loading').classList.add('depart'); setTimeout(() => { $('loading').style.display = 'none'; }, 450); };
+manager.onLoad = () => {};
 manager.onError = () => { $('loading-note').textContent = 'Using optimized arena warrior'; };
 
-loadArenaModel(arena, fallbackDecor, manager).catch(() => {
+const arenaReady = loadArenaModel(arena, fallbackDecor, manager).catch(() => {
   fallbackDecor.visible = true;
   $('loading-note').textContent = 'Arena fallback active';
 });
 
 let playerChar = null, aiChar = null, playerRig = null, aiRig = null;
-const STRIKER_MODEL = 'https://raw.githubusercontent.com/badbuny126-png/-poca-tok-2026/main/public/models/player.glb';
-loadCharacters(scene, manager, STRIKER_MODEL).then((result) => {
+const STRIKER_MODEL = './assets/characters/player.glb';
+const charactersReady = loadCharacters(scene, manager, STRIKER_MODEL).then((result) => {
   playerChar = result.playerChar; aiChar = result.aiChar;
   playerRig = result.playerBones; aiRig = result.aiBones;
   aiChar.visible = mode !== 'solo';
+});
+Promise.all([arenaReady,charactersReady]).then(()=>{
+  $('loading').classList.add('depart');
+  setTimeout(()=>{$('loading').style.display='none';},450);
 });
 
 const aimGroup = new THREE.Group();
@@ -65,6 +71,7 @@ const particleGeometry = new THREE.SphereGeometry(.055, 5, 4);
 const particles = [];
 function burst(position, color = 0xffa52b, count = 16) {
   const material = new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  material.userData.remaining=count;
   for (let i = 0; i < count; i += 1) {
     const particle = new THREE.Mesh(particleGeometry, material);
     particle.position.copy(position);
@@ -80,7 +87,7 @@ function updateParticles(dt) {
     particle.userData.velocity.y -= 8 * dt;
     particle.position.addScaledVector(particle.userData.velocity, dt);
     particle.material.opacity = Math.max(0, particle.userData.life * 1.8);
-    if (particle.userData.life <= 0) { scene.remove(particle); particles.splice(i,1); }
+    if (particle.userData.life <= 0) { scene.remove(particle); particles.splice(i,1); if(--particle.material.userData.remaining===0)particle.material.dispose(); }
   }
 }
 
@@ -88,6 +95,7 @@ let audioContext = null;
 function tone(frequency, duration, type = 'sine', volume = .06) {
   try {
     audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+    if(audioContext.state==='suspended')audioContext.resume();
     const oscillator = audioContext.createOscillator(); const gain = audioContext.createGain();
     oscillator.type = type; oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
     gain.gain.setValueAtTime(volume, audioContext.currentTime);
@@ -99,7 +107,8 @@ function tone(frequency, duration, type = 'sine', volume = .06) {
 const TARGET_SCORE = 3, SOLO_SECONDS = 60, HIT_RANGE = 2.05, PLAYER_SPEED = 7.2, AI_SPEED = 5.05;
 let mode = null, phase = 'menu', scorePlayer = 0, scoreAI = 0, timeLeft = SOLO_SECONDS;
 let playerHitCooldown = 0, aiHitCooldown = 0, playerSwingTimer = 0, aiSwingTimer = 0;
-let lastTouch = 'player', currentAimAngle = Math.PI, countdownToken = 0, shake = 0;
+let lastTouch = 'player', currentAimAngle = 0, shake = 0;
+let goalTime=0,countdownTime=0,paused=false,playerMoveSpeed=0,aiMoveSpeed=0;
 
 function callout(text, kind = '') {
   const element = $('callout'); element.textContent = text; element.className = kind;
@@ -107,7 +116,10 @@ function callout(text, kind = '') {
 }
 
 function resetPositions() {
-  ballState.reset();
+  ballState.reset(); Input.resetInput();
+  playerHitCooldown=aiHitCooldown=playerSwingTimer=aiSwingTimer=0;
+  lastTouch='player';playerMoveSpeed=aiMoveSpeed=0;
+  ballMesh.userData.history.length=0;
   if (playerChar) { playerChar.position.set(-2.2, 0, -7); playerChar.rotation.y = 0; }
   if (aiChar) { aiChar.position.set(2.2, 0, 7); aiChar.rotation.y = Math.PI; }
 }
@@ -120,19 +132,23 @@ function updateHUD() {
 }
 
 function beginCountdown() {
-  const token = ++countdownToken; phase = 'countdown'; $('countdown').style.display = 'flex';
-  let number = 3; $('countdown-value').textContent = number;
-  const step = () => {
-    if (token !== countdownToken) return; number -= 1;
-    if (number > 0) { $('countdown-value').textContent = number; tone(270 + number * 70, .12); setTimeout(step, 650); }
-    else if (number === 0) { $('countdown-value').textContent = 'PLAY'; tone(640, .25, 'triangle'); setTimeout(step, 550); }
-    else { $('countdown').style.display = 'none'; phase = 'playing'; }
-  };
-  tone(480, .12); setTimeout(step, 650);
+  phase='countdown';countdownTime=3;
+  $('countdown').style.display='flex';$('countdown-value').textContent='3';
+  tone(480,.12);
 }
+function togglePause(force) {
+  if(!['playing','countdown','goal'].includes(phase))return;
+  paused=typeof force==='boolean'?force:!paused;
+  Input.resetInput();$('pause-screen').style.display=paused?'flex':'none';if(!paused)canvas.focus();
+}
+$('pause-btn').addEventListener('click',()=>togglePause());
+$('resume-btn').addEventListener('click',()=>togglePause(false));
+addEventListener('blur',()=>togglePause(true));
+document.addEventListener('visibilitychange',()=>{if(document.hidden)togglePause(true);});
 
 function startGame(selectedMode) {
-  mode = selectedMode; scorePlayer = 0; scoreAI = 0; timeLeft = SOLO_SECONDS;
+  paused=false;$('pause-screen').style.display='none';$('pause-btn').classList.remove('hidden');$('hint').classList.remove('hidden');
+  canvas.focus(); mode = selectedMode; scorePlayer = 0; scoreAI = 0; timeLeft = SOLO_SECONDS;
   $('menu').style.display = 'none'; $('endscreen').style.display = 'none';
   $('hud').classList.remove('hidden'); $('energy').classList.remove('hidden');
   if (matchMedia('(pointer: coarse)').matches) $('touch-controls').classList.remove('hidden');
@@ -146,42 +162,42 @@ function startGame(selectedMode) {
 document.querySelectorAll('.mode-btn').forEach((button) => button.addEventListener('click', () => startGame(button.dataset.mode)));
 $('restart-btn').addEventListener('click', () => startGame(mode));
 $('menu-btn').addEventListener('click', () => {
-  ++countdownToken; phase = 'menu'; mode = null;
+  phase = 'menu'; mode = null; Input.resetInput();
   $('endscreen').style.display = 'none'; $('menu').style.display = 'flex';
   $('hud').classList.add('hidden'); $('energy').classList.add('hidden'); $('touch-controls').classList.add('hidden');
   if (aiChar) aiChar.visible = true;
 });
 
-function applyHit(fromPosition, angle, owner, power = 1) {
-  const aim = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle));
-  const towardRing = new THREE.Vector3().subVectors(ringWorldPos, fromPosition).normalize();
-  const direction = aim.multiplyScalar(.58).add(towardRing.multiplyScalar(.42)).normalize();
-  ballState.vel.set(direction.x * 9.2 * power, (7.5 + Math.random() * 2) * power, direction.z * 9.2 * power);
-  ballState.heldCooldown = .32; lastTouch = owner;
+function applyHit(fromPosition, angle, owner) {
+  ballState.vel.copy(shotVelocity(ballState.pos,angle,ringWorldPos));
+  ballState.heldCooldown=.2;lastTouch=owner;
   burst(ballState.pos, owner === 'player' ? 0xffb12b : 0xe6363e, 18); shake = .24;
   tone(owner === 'player' ? 150 : 115, .18, 'sawtooth', .08);
   callout(owner === 'player' ? 'KINETIC STRIKE!' : 'RIVAL STRIKE', owner);
 }
 
 function tryPlayerHit() {
-  if (phase !== 'playing' || !playerChar || playerHitCooldown > 0) return;
-  if (ballState.pos.distanceTo(playerChar.position) > HIT_RANGE) { callout('GET CLOSER', 'muted'); tone(90,.08,'square',.025); return; }
-  applyHit(playerChar.position, currentAimAngle, 'player', 1.08); playerHitCooldown = .45; playerSwingTimer = .3;
+  if (paused || phase !== 'playing' || !playerChar || playerHitCooldown > 0 || ballState.heldCooldown > 0) return;
+  if (ballState.pos.distanceTo(playerChar.position.clone().setY(1.05)) > HIT_RANGE) { callout('GET CLOSER', 'muted'); tone(90,.08,'square',.025); return; }
+  currentAimAngle=Input.mouseAimAngle;playerChar.rotation.y=currentAimAngle;
+  applyHit(playerChar.position,currentAimAngle,'player');playerHitCooldown=.45;playerSwingTimer=.45;
 }
 setupInput(canvas, camera, () => playerChar?.position, tryPlayerHit);
+$('hint').textContent=matchMedia('(pointer: coarse)').matches?'Left stick: move · Drag court: aim · Strike near ball':'WASD: move · Mouse: aim · Space: hip strike';
 
 function registerScore() {
+  if(phase!=='playing'||paused)return;
   const playerScored = mode === 'solo' || lastTouch === 'player';
   if (playerScored) scorePlayer += 1; else scoreAI += 1;
   updateHUD(); burst(ringWorldPos, 0xffd34e, 44);
   tone(520,.18,'triangle',.09); setTimeout(() => tone(760,.34,'triangle',.07), 110);
   callout(playerScored ? 'SUN RING!' : 'RIVAL SCORES', playerScored ? 'score' : 'rival');
   phase = 'goal';
-  if (mode === 'versus' && (scorePlayer >= TARGET_SCORE || scoreAI >= TARGET_SCORE)) { setTimeout(finishGame, 850); return; }
-  setTimeout(() => { resetPositions(); phase = 'playing'; }, 850);
+  goalTime=.85;
 }
 
 function finishGame() {
+  Input.resetInput();$('pause-btn').classList.add('hidden');$('hint').classList.add('hidden');$('touch-controls').classList.add('hidden');
   phase = 'ended'; $('endscreen').style.display = 'flex';
   if (mode === 'solo') {
     $('end-mode').textContent = 'SOLO TRIAL COMPLETE'; $('end-title').textContent = `${scorePlayer} RINGS`;
@@ -196,16 +212,20 @@ function finishGame() {
 function updatePlayer(dt) {
   if (!playerChar || phase !== 'playing') return;
   const { mx, mz, moving } = getMoveVector();
+  const previous=playerChar.position.clone();
   if (moving) {
     playerChar.position.x = THREE.MathUtils.clamp(playerChar.position.x + mx * PLAYER_SPEED * dt, -COURT_WIDTH / 2 + .75, COURT_WIDTH / 2 - .75);
     playerChar.position.z = THREE.MathUtils.clamp(playerChar.position.z + mz * PLAYER_SPEED * dt, -COURT_LENGTH / 2 + 1, COURT_LENGTH / 2 - 1);
-    playerChar.rotation.y = THREE.MathUtils.lerp(playerChar.rotation.y, Math.atan2(mx, mz), .28);
+    const target=Math.atan2(mx,mz),turn=Math.atan2(Math.sin(target-playerChar.rotation.y),Math.cos(target-playerChar.rotation.y));
+    if(playerSwingTimer<=0)playerChar.rotation.y+=turn*(1-Math.exp(-14*dt));
   }
+  playerMoveSpeed=playerChar.position.distanceTo(previous)/dt;
   playerHitCooldown = Math.max(0, playerHitCooldown - dt);
 }
 
 function updateAI(dt) {
   if (!aiChar || mode !== 'versus' || phase !== 'playing') return;
+  const previous=aiChar.position.clone();
   aiHitCooldown = Math.max(0, aiHitCooldown - dt);
   const toBall = new THREE.Vector3(ballState.pos.x, 0, ballState.pos.z).sub(aiChar.position);
   const distance = toBall.length();
@@ -214,29 +234,46 @@ function updateAI(dt) {
     aiChar.position.x = THREE.MathUtils.clamp(aiChar.position.x + toBall.x * AI_SPEED * dt, -COURT_WIDTH / 2 + .75, COURT_WIDTH / 2 - .75);
     aiChar.position.z = THREE.MathUtils.clamp(aiChar.position.z + toBall.z * AI_SPEED * dt, -COURT_LENGTH / 2 + 1, COURT_LENGTH / 2 - 1);
     aiChar.rotation.y = Math.atan2(toBall.x, toBall.z);
-  } else if (aiHitCooldown <= 0 && ballState.pos.y < 3) {
+  } else if (aiHitCooldown <= 0 && ballState.heldCooldown <= 0 && ballState.pos.distanceTo(aiChar.position.clone().setY(1.05)) < HIT_RANGE) {
     const angle = Math.atan2(ringWorldPos.x - aiChar.position.x, ringWorldPos.z - aiChar.position.z) + (Math.random() - .5) * .38;
-    applyHit(aiChar.position, angle, 'ai', .96); aiHitCooldown = .8 + Math.random() * .45; aiSwingTimer = .3;
+    applyHit(aiChar.position, angle, 'ai', .96); aiHitCooldown = .8 + Math.random() * .45; aiSwingTimer = .45;
   }
+  aiMoveSpeed=aiChar.position.distanceTo(previous)/dt;
 }
 
 const desiredCamera = new THREE.Vector3(); const cameraTarget = new THREE.Vector3();
 const clock = new THREE.Clock(); let elapsed = 0;
 function updateCamera(dt) {
   if (!playerChar) return;
-  cameraTarget.copy(playerChar.position).lerp(ballState.pos, .16); cameraTarget.y = 1.25;
-  desiredCamera.set(playerChar.position.x * .18, playerChar.position.y + 4.25, playerChar.position.z + 7.1);
+  cameraTarget.copy(playerChar.position).lerp(ballState.pos,.28);cameraTarget.y=1.5;
+  const portrait=innerHeight>innerWidth;
+  desiredCamera.set(playerChar.position.x*.4,portrait?8.8:6.8,Math.min(COURT_LENGTH/2-1,playerChar.position.z+(portrait?12:10)));
   if (shake > 0) { desiredCamera.x += (Math.random()-.5)*shake; desiredCamera.y += (Math.random()-.5)*shake; shake = Math.max(0, shake-dt*1.8); }
   camera.position.lerp(desiredCamera, 1 - Math.pow(.002, dt)); camera.lookAt(cameraTarget);
 }
 
 function tick() {
   requestAnimationFrame(tick);
-  const dt = Math.min(clock.getDelta(), .05); elapsed += dt;
-  if (phase === 'playing') {
-    if (mode === 'solo') { timeLeft -= dt; if (timeLeft <= 0) { timeLeft = 0; finishGame(); } }
-    updatePlayer(dt); updateAI(dt);
-    if (ballState.update(dt, ringWorldPos)) registerScore();
+  const frameDt=Math.min(clock.getDelta(),.1),dt=paused?0:frameDt;
+  elapsed+=dt;
+  if(phase==='countdown'&&!paused) {
+    countdownTime-=dt;
+    $('countdown-value').textContent=countdownTime>.5?Math.ceil(countdownTime):'PLAY';
+    if(countdownTime<=0){$('countdown').style.display='none';phase='playing';}
+  }
+  if(phase==='goal'&&!paused) {
+    goalTime-=dt;
+    if(goalTime<=0) {
+      if(mode==='versus'&&Math.max(scorePlayer,scoreAI)>=TARGET_SCORE)finishGame();
+      else{resetPositions();phase='playing';}
+    }
+  }
+  if(phase==='playing'&&!paused) {
+    if(mode==='solo'){timeLeft=Math.max(0,timeLeft-dt);if(timeLeft===0)finishGame();}
+    if(phase==='playing'){
+      updatePlayer(dt);updateAI(dt);
+      if(ballState.update(dt,ringWorldPos))registerScore();
+    }
   }
   ballMesh.position.copy(ballState.pos); updateBallVisual(ballMesh, ballState.vel, dt);
   updateCourt(arena, elapsed); updateParticles(dt); updateHUD();
@@ -247,9 +284,9 @@ function tick() {
   }
   updateCamera(dt);
   playerSwingTimer = Math.max(0, playerSwingTimer - dt); aiSwingTimer = Math.max(0, aiSwingTimer - dt);
-  animateCharacter(playerRig, isMoveKeyDown(), playerSwingTimer, dt, elapsed);
-  animateCharacter(aiRig, mode === 'versus' && phase === 'playing', aiSwingTimer, dt, elapsed);
-  ringMesh.rotation.z = Math.sin(elapsed * .8) * .018;
+  animateCharacter(playerRig,phase==='playing'?playerMoveSpeed:0,playerSwingTimer,dt,elapsed);
+  animateCharacter(aiRig,mode==='versus'&&phase==='playing'?aiMoveSpeed:0,aiSwingTimer,dt,elapsed);
+
   renderer.render(scene, camera);
 }
 tick();

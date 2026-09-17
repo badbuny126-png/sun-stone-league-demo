@@ -12,7 +12,7 @@
 </head>
 <body>
   <div id="app">
-    <canvas id="game-canvas"></canvas>
+    <canvas id="game-canvas" tabindex="0" aria-label="Sun-Stone League game court"></canvas>
 
     <div id="loading">
       <div class="loading-mark">☀</div>
@@ -42,7 +42,7 @@
     </div>
 
     <div id="energy" class="hidden">
-      <div class="energy-label">KINETIC CHARGE <span id="energy-value">0%</span></div>
+      <div class="energy-label">BALL ENERGY <span id="energy-value">0%</span></div>
       <div class="energy-track"><div id="energy-fill"></div></div>
     </div>
 
@@ -52,6 +52,9 @@
       <div id="joystick"><div id="joystick-knob"></div></div>
       <button id="hit-btn" aria-label="Strike the ball">STRIKE</button>
     </div>
+
+    <button id="pause-btn" class="hidden" aria-label="Pause game">Ⅱ</button>
+    <div id="pause-screen" class="overlay"><div class="panel compact"><h1>PAUSED</h1><p>Your match is waiting.</p><button id="resume-btn">Resume game</button></div></div>
 
     <div id="endscreen" class="overlay">
       <div class="panel compact">
