@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { alignArena } from './arena-layout.js';
+import { createArenaMaterial } from './stone-material.js';
 
 export const COURT_LENGTH = 32;
 export const COURT_WIDTH = 14;
@@ -144,11 +146,11 @@ function addCrowd(group) {
 }
 
 function addSky(scene) {
-  const sky = new THREE.Mesh(new THREE.SphereGeometry(95, 24, 16), new THREE.ShaderMaterial({
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(180, 24, 16), new THREE.ShaderMaterial({
     side: THREE.BackSide,
     uniforms: { topColor: { value: new THREE.Color(0x193854) }, horizonColor: { value: new THREE.Color(0xf09b4b) }, groundColor: { value: new THREE.Color(0x35170f) } },
     vertexShader: 'varying vec3 vPos; void main(){vPos=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-    fragmentShader: 'varying vec3 vPos;uniform vec3 topColor;uniform vec3 horizonColor;uniform vec3 groundColor;void main(){float h=normalize(vPos).y;vec3 c=h>0.0?mix(horizonColor,topColor,smoothstep(0.0,.72,h)):mix(horizonColor,groundColor,smoothstep(0.0,-.42,h));gl_FragColor=vec4(c,1.0);}',
+    fragmentShader: 'varying vec3 vPos;uniform vec3 topColor;uniform vec3 horizonColor;uniform vec3 groundColor;void main(){float h=normalize(vPos).y;vec3 c=h>0.0?mix(horizonColor,topColor,smoothstep(0.0,.72,h)):mix(horizonColor,groundColor,(1.0-smoothstep(-.42,0.0,h)));gl_FragColor=vec4(c,1.0);}',
   }));
   scene.add(sky);
   const sun = new THREE.Sprite(new THREE.SpriteMaterial({ color: 0xffd27a, transparent: true, opacity: .9, depthWrite: false }));
@@ -184,7 +186,7 @@ export function createCourt(scene) {
   const ringMat = new THREE.MeshStandardMaterial({ color: palette.gold, roughness: .28, metalness: .55, emissive: 0x7d2d00, emissiveIntensity: .55 });
   const ringMesh = new THREE.Mesh(new THREE.TorusGeometry(RING_RADIUS, RING_TUBE, 18, 56), ringMat);
   ringMesh.rotation.y = Math.PI / 2;
-  ringMesh.position.set(COURT_WIDTH / 2 - .58, RING_HEIGHT, 0);
+  ringMesh.position.set(COURT_WIDTH / 2 - 1.25, RING_HEIGHT, 0);
   ringMesh.castShadow = true;
   ringGroup.add(ringMesh);
   const mount = box(ringGroup, [.4, 3.1, 3.6], [COURT_WIDTH / 2 + .18, RING_HEIGHT, 0], mats[2]);
@@ -192,7 +194,7 @@ export function createCourt(scene) {
   for (let i = 0; i < 12; i += 1) {
     const a = i / 12 * Math.PI * 2;
     const gem = new THREE.Mesh(new THREE.BoxGeometry(.18,.24,.24), new THREE.MeshStandardMaterial({ color: i % 2 ? palette.jade : palette.gold, emissive: i % 2 ? 0x06352e : 0x542000, emissiveIntensity: .35 }));
-    gem.position.set(COURT_WIDTH / 2 - .62, RING_HEIGHT + Math.sin(a) * 1.55, Math.cos(a) * 1.55);
+    gem.position.set(COURT_WIDTH / 2 - 1.29, RING_HEIGHT + Math.sin(a) * 1.55, Math.cos(a) * 1.55);
     ringGroup.add(gem);
   }
   group.add(ringGroup);
@@ -219,37 +221,18 @@ export async function loadArenaModel(arena, fallbackDecor, manager) {
     texture.wrapT = THREE.ClampToEdgeWrapping;
   }
 
-  const arenaMaterial = new THREE.MeshStandardMaterial({
-    map: albedo,
-    normalMap: normal,
-    roughnessMap: roughness,
-    normalScale: new THREE.Vector2(.68, .68),
-    color: 0xffffff,
-    roughness: .92,
-    metalness: .01,
-  });
+  const arenaMaterial = createArenaMaterial(albedo,normal,roughness);
   model.name = 'ImportedMayanArena';
   model.rotation.y = Math.PI / 2;
   model.traverse((object) => {
     if (!object.isMesh) return;
     object.material = arenaMaterial;
-    object.castShadow = false;
+    object.castShadow = true;
     object.receiveShadow = true;
     if (!object.geometry.attributes.normal) object.geometry.computeVertexNormals();
   });
 
-  model.updateMatrixWorld(true);
-  let bounds = new THREE.Box3().setFromObject(model);
-  const size = bounds.getSize(new THREE.Vector3());
-  const scale = 35 / Math.max(size.z, .001);
-  model.scale.setScalar(scale);
-  model.updateMatrixWorld(true);
-  bounds = new THREE.Box3().setFromObject(model);
-  const center = bounds.getCenter(new THREE.Vector3());
-  model.position.x -= center.x;
-  model.position.z -= center.z;
-  model.position.y -= bounds.min.y + .06;
-  model.updateMatrixWorld(true);
+  alignArena(model);
 
   arena.add(model);
   fallbackDecor.visible = false;
@@ -267,16 +250,17 @@ export function updateCourt(arena, time) {
 }
 
 export function addLighting(scene) {
-  scene.add(new THREE.HemisphereLight(0xffcf8b, 0x172b31, 1.5));
-  const sun = new THREE.DirectionalLight(0xffb767, 3.4);
+  scene.add(new THREE.HemisphereLight(0xffefd5, 0x34434a, 1.35));
+  const sun = new THREE.DirectionalLight(0xffdfb0, 2.6);
   sun.position.set(-18, 24, 14);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.left = -18; sun.shadow.camera.right = 18;
   sun.shadow.camera.top = 24; sun.shadow.camera.bottom = -18;
   sun.shadow.camera.near = 1; sun.shadow.camera.far = 65;
-  sun.shadow.bias = -.0004;
+  sun.shadow.bias = -.0003;
+  sun.shadow.normalBias = .025;
   scene.add(sun);
-  const rim = new THREE.DirectionalLight(0x42b8aa, 1.25);
+  const rim = new THREE.DirectionalLight(0x9fc8dc, .65);
   rim.position.set(10, 8, -15); scene.add(rim);
 }

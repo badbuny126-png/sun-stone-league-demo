@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 
-const TARGET_HEIGHT = 2.45;
+export const TARGET_HEIGHT = 2.2;
 
 function material(color, emissive = 0x000000) {
   return new THREE.MeshStandardMaterial({ color, roughness: .68, metalness: .08, emissive, emissiveIntensity: .25 });
@@ -54,23 +54,22 @@ function proceduralWarrior(team) {
 
 function collectBones(root) {
   const bones = {};
-  root.traverse((object) => { if (object.isBone) bones[object.name] = object; });
+  root.traverse((object) => { if (object.isBone) bones[object.name.replace(/^mixamorig[:_]?/, '')] = object; });
   return bones;
 }
 
-function normalizeModel(model) {
+export function normalizeModel(model) {
+  model.rotation.y += Math.PI;
   model.updateMatrixWorld(true);
-  let bounds = new THREE.Box3().setFromObject(model);
-  const size = bounds.getSize(new THREE.Vector3());
-  if (!Number.isFinite(size.y) || size.y < .001) throw new Error('Invalid model bounds');
-  model.scale.multiplyScalar(TARGET_HEIGHT / size.y);
+  let bounds = new THREE.Box3().setFromObject(model,true);
+  const height=bounds.max.y-bounds.min.y;
+  if (!Number.isFinite(height) || height<.001) throw new Error('Invalid model bounds');
+  model.scale.multiplyScalar(TARGET_HEIGHT/height);
   model.updateMatrixWorld(true);
-  bounds = new THREE.Box3().setFromObject(model);
-  const center = bounds.getCenter(new THREE.Vector3());
-  model.position.x -= center.x;
-  model.position.z -= center.z;
-  model.position.y -= bounds.min.y;
-  model.rotation.y = Math.PI;
+  bounds=new THREE.Box3().setFromObject(model,true);
+  const center=bounds.getCenter(new THREE.Vector3());
+  model.position.sub(new THREE.Vector3(center.x,bounds.min.y,center.z));
+  model.updateMatrixWorld(true);
 }
 
 function tint(root, color) {
@@ -98,24 +97,49 @@ function makeContainer(model, team) {
   return container;
 }
 
-function poseImportedRig(rig) {
-  const bones = rig.bones;
-  const leftArm = bones['mixamorig:LeftArm'] || bones.LeftArm;
-  const rightArm = bones['mixamorig:RightArm'] || bones.RightArm;
-  if (leftArm) leftArm.rotation.z = -1.15;
-  if (rightArm) rightArm.rotation.z = 1.15;
+const AXES=[new THREE.Vector3(1,0,0),new THREE.Vector3(0,1,0),new THREE.Vector3(0,0,1)];
+const deltaQ=new THREE.Quaternion();
+export function prepareImportedRig(rig) {
+  const find=name=>rig.bones[name];
+  rig.root.updateMatrixWorld(true);
+  for (const side of ['Left','Right']) {
+    const arm=find(side+'Arm'),elbow=find(side+'ForeArm');
+    if (!arm || !elbow) continue;
+    const from=elbow.getWorldPosition(new THREE.Vector3()).sub(arm.getWorldPosition(new THREE.Vector3())).normalize();
+    const to=new THREE.Vector3((Math.sign(from.x)||1)*.2,-.97,.08).normalize();
+    const parentQ=arm.parent.getWorldQuaternion(new THREE.Quaternion());
+    const change=parentQ.clone().invert().multiply(new THREE.Quaternion().setFromUnitVectors(from,to)).multiply(parentQ);
+    arm.quaternion.premultiply(change);
+    rig.root.updateMatrixWorld(true);
+  }
+  rig.rest={};
+  for (const [name,bone] of Object.entries(rig.bones)) {
+    const inverse=bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+    rig.rest[name]={bone,quaternion:bone.quaternion.clone(),axes:AXES.map(axis=>axis.clone().applyQuaternion(inverse))};
+  }
+  rig.basePosition=rig.body.position.clone();
+  rig.feet=['LeftFoot','RightFoot','LeftToeBase','RightToeBase'].map(find).filter(Boolean);
+  rig.footHeight=Math.min(...rig.feet.map(bone=>bone.getWorldPosition(new THREE.Vector3()).y));
+  rig.gait=0;rig.moveBlend=0;
+}
+function rotateBone(rig,name,x=0,y=0,z=0) {
+  const rest=rig.rest[name];if(!rest)return;
+  rest.bone.quaternion.copy(rest.quaternion);
+  [x,y,z].forEach((angle,i)=>{
+    if(angle)rest.bone.quaternion.premultiply(deltaQ.setFromAxisAngle(rest.axes[i],angle));
+  });
 }
 
-function spawnPair(scene, sourceModel = null) {
+export function spawnPair(scene, sourceModel = null) {
   let playerChar;
   let aiChar;
   if (sourceModel) {
     try {
-      playerChar = makeContainer(sourceModel, 'player');
+      playerChar = makeContainer(cloneSkeleton(sourceModel), 'player');
       if (Object.keys(playerChar.userData.rig.bones).length < 5) throw new Error('Static T-pose model');
       aiChar = makeContainer(cloneSkeleton(sourceModel), 'rival');
-      poseImportedRig(playerChar.userData.rig);
-      poseImportedRig(aiChar.userData.rig);
+      prepareImportedRig(playerChar.userData.rig);
+      prepareImportedRig(aiChar.userData.rig);
     } catch {
       playerChar = proceduralWarrior('player');
       aiChar = proceduralWarrior('rival');
@@ -137,31 +161,35 @@ export function loadCharacters(scene, manager, modelUrl) {
   });
 }
 
-export function animateCharacter(rig, moving, swingTimer, _dt, time) {
-  if (!rig?.root) return;
-  const stride = moving ? Math.sin(time * 10) : 0;
-  rig.root.position.y = rig.baseY + (moving ? Math.abs(Math.sin(time * 10)) * .055 : Math.sin(time * 2.4) * .012);
-  rig.root.rotation.z = THREE.MathUtils.lerp(rig.root.rotation.z, moving ? Math.sin(time * 10) * .025 : 0, .16);
-  if (rig.procedural) {
-    rig.leftLeg.rotation.x = stride * .5;
-    rig.rightLeg.rotation.x = -stride * .5;
-    rig.leftArm.rotation.x = -stride * .42;
-    rig.rightArm.rotation.x = stride * .42;
-    if (swingTimer > 0) {
-      const hit = Math.sin((1 - swingTimer / .3) * Math.PI);
-      rig.body.rotation.z = -hit * .24;
-      rig.rightArm.rotation.x = -1.4 * hit;
-    } else rig.body.rotation.z *= .78;
+export function animateCharacter(rig,speed,swingTimer,dt,time) {
+  if(!rig?.root || dt<=0)return;
+  const moving=typeof speed==='number'?Math.min(speed/7.2,1):Number(speed);
+  if(rig.procedural) {
+    const stride=Math.sin(time*10)*moving;
+    rig.body.position.y=Math.abs(stride)*.04;
+    rig.leftLeg.rotation.x=stride*.5;rig.rightLeg.rotation.x=-stride*.5;
+    rig.leftArm.rotation.x=-stride*.3;rig.rightArm.rotation.x=stride*.3;
+    const hit=swingTimer>0?Math.sin((1-swingTimer/.45)*Math.PI):0;
+    rig.body.rotation.set(0,hit*.75,-hit*.16);
     return;
   }
-  const bones = rig.bones || {};
-  const hips = bones['mixamorig:Hips'] || bones.Hips;
-  const spine = bones['mixamorig:Spine1'] || bones.Spine1;
-  const rightArm = bones['mixamorig:RightArm'] || bones.RightArm;
-  if (hips && moving) hips.rotation.z = stride * .045;
-  if (swingTimer > 0) {
-    const hit = Math.sin((1 - swingTimer / .3) * Math.PI);
-    if (spine) spine.rotation.x = -hit * .42;
-    if (rightArm) rightArm.rotation.x = -hit * 1.15;
-  } else if (spine) spine.rotation.x *= .82;
+  rig.moveBlend=THREE.MathUtils.damp(rig.moveBlend,moving,12,dt);
+  rig.gait+=dt*(7+moving*5);
+  const blend=rig.moveBlend,stride=Math.sin(rig.gait)*blend;
+  const hit=swingTimer>0?Math.sin((1-swingTimer/.45)*Math.PI):0;
+  for(const rest of Object.values(rig.rest))rest.bone.quaternion.copy(rest.quaternion);
+  rotateBone(rig,'LeftUpLeg',stride*.65);rotateBone(rig,'RightUpLeg',-stride*.65);
+  rotateBone(rig,'LeftLeg',-Math.max(0,-stride)*.95);rotateBone(rig,'RightLeg',-Math.max(0,stride)*.95);
+  rotateBone(rig,'LeftFoot',-stride*.2);rotateBone(rig,'RightFoot',stride*.2);
+  rotateBone(rig,'LeftArm',-stride*.32,0,-hit*.18);rotateBone(rig,'RightArm',stride*.32,0,hit*.18);
+  rotateBone(rig,'LeftForeArm',-.25-blend*.25);rotateBone(rig,'RightForeArm',-.25-blend*.25);
+  rotateBone(rig,'Hips',blend*.06,hit*.72,stride*.025-hit*.13);
+  rotateBone(rig,'Spine',-blend*.04,-hit*.3,Math.sin(time*2)*.01);
+  rotateBone(rig,'Spine1',0,-hit*.2);
+  rig.body.position.copy(rig.basePosition);rig.body.position.x+=hit*.18;
+  rig.root.updateMatrixWorld(true);
+  if(rig.feet.length) {
+    const lowest=Math.min(...rig.feet.map(bone=>bone.getWorldPosition(new THREE.Vector3()).y));
+    rig.body.position.y+=rig.footHeight-lowest;
+  }
 }
