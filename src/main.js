@@ -324,6 +324,7 @@ function tick() {
   playerSwingTimer = Math.max(0, playerSwingTimer - dt);
   animateCharacter(playerRig,phase==='playing'?playerMoveSpeed:0,playerSwingTimer,dt,elapsed);
   for (const fighter of aiFighters) {
+    if (!fighter.character.visible || mode !== 'versus') continue;
     fighter.swingTimer = Math.max(0, fighter.swingTimer - dt);
     animateCharacter(fighter.rig,mode==='versus'&&phase==='playing'?fighter.moveSpeed:0,fighter.swingTimer,dt,elapsed);
   }
