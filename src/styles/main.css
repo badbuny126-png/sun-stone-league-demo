@@ -51,4 +51,4 @@ button{font:inherit;cursor:pointer}
 
 /* A subtle lens vignette leaves controls and text above it. */
 #app::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 43%, transparent 45%, rgba(30,15,10,.22) 100%); }
-#hit-btn.ready { border-color: #ffe6a1; box-shadow: 0 0 22px rgba(255,193,75,.55); color: #fff2ce; }
+#hit-btn.ready { border-color: #ffe6a1; box-shadow: 0 0 22px rgba(255,193,75,.55); color: #2a1607; }
