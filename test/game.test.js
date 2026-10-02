@@ -44,6 +44,11 @@ test('manual shot preview follows the same ball integrator and leaves the origin
   const miss=predictShot(new THREE.Vector3(0,.8,13),0,ring,{seconds:.75});
   assert.ok(miss.every(point=>point.y>=BALL_RADIUS && Math.abs(point.z)<=16-BALL_RADIUS+.00001));
   assert.ok(miss.at(-1).z>=14.7,'guide ends when the opponent back zone is crossed');
+  const weak=predictShot(origin,0,ring,{seconds:.1});
+  assert.ok(weak.length<49,'guide ends at the second-bounce fault');
+  const fault=new BallState(()=>.5);fault.pos.copy(origin);fault.vel.copy(shotVelocity(origin,0,ring,{seconds:.1}));
+  let bounces=0;for(let i=1;i<weak.length;i++){fault.update(.05,ring);bounces+=fault.events.filter(e=>e.kind==='floor').length;}
+  assert.equal(bounces,2);
 });
 
 test('known ballistic ring shots score exactly once across frame rates',()=>{
