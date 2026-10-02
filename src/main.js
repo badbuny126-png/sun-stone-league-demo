@@ -136,6 +136,7 @@ if (['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParam
     setupPlayerStrike: (inRange) => {
       if(mode!=='solo'||phase!=='playing'||!playerChar)throw new Error('A solo round must be playing');
       ballState.reset();ballState.pos.copy(playerChar.position).add(new THREE.Vector3(inRange?.8:0,.43,inRange?0:10));
+      if(!inRange)ballState.pos.set(-playerChar.position.x,.43,playerChar.position.z>0?-12:12);
       playerHitCooldown=playerSwingTimer=0;playerPendingStrike=null;
     },
   });
@@ -148,6 +149,7 @@ function callout(text, kind = '') {
 
 function resetPositions() {
   ballState.reset(); Input.resetInput();
+  $('callout').textContent='';$('callout').className='';
   playerHitCooldown=playerSwingTimer=0;
   playerPendingStrike=null;playerVelocity.set(0,0);
   lastTouch='sun';playerMoveSpeed=0;
