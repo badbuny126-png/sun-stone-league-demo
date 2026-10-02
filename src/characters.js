@@ -179,7 +179,7 @@ export function loadCharacters(scene, manager, modelUrl) {
   });
 }
 
-export function animateCharacter(rig,speed,swingTimer,dt,time) {
+export function animateCharacter(rig,speed,swingTimer,dt,time,type='hip',charging=0) {
   if(!rig?.root || dt<=0)return;
   const moving=typeof speed==='number'?Math.min(speed/7.2,1):Number(speed);
   if(rig.procedural) {
@@ -197,12 +197,13 @@ export function animateCharacter(rig,speed,swingTimer,dt,time) {
   const strideLength=Math.min(1.35,(rig.legs[0]?.upper+rig.legs[0]?.lower||1)*1.05);
   rig.gait+=dt*(typeof speed==='number'?speed:moving*7.2)*.6/strideLength;
   const stride=Math.sin(rig.gait*Math.PI*2)*blend;
-  const {windup,drive:hit}=strikePose(swingTimer);
+  const pose=strikePose(swingTimer),windup=Math.max(pose.windup,charging*.5),hit=pose.drive;
   for(const rest of Object.values(rig.rest))rest.bone.quaternion.copy(rest.quaternion);
   rotateBone(rig,'LeftArm',-stride*.42-windup*.25,0,-hit*.2);
   rotateBone(rig,'RightArm',stride*.42+windup*.35,0,hit*.3);
   rotateBone(rig,'LeftForeArm',-.28-blend*.3-hit*.25);
   rotateBone(rig,'RightForeArm',-.28-blend*.3-windup*.35);
+  if(type==='elbow'){rotateBone(rig,'RightArm',-.6*hit-windup*.3,hit*.35,hit*.15);rotateBone(rig,'RightForeArm',-.5-hit*.7);}
   rotateBone(rig,'LeftHand',stride*.1,hit*.15,-hit*.12);
   rotateBone(rig,'RightHand',-stride*.1,-windup*.2,hit*.18);
   for(const side of ['Left','Right'])for(const finger of ['Index','Middle','Ring','Pinky'])for(let joint=1;joint<=3;joint++)
@@ -220,6 +221,7 @@ export function animateCharacter(rig,speed,swingTimer,dt,time) {
   for(let i=0;i<rig.legs.length;i++) {
     const leg=rig.legs[i],cycle=footCycle(rig.gait+i*.5,strideLength*blend,.2*blend);
     const goal=leg.origin.clone();goal.z+=cycle.z;goal.y+=cycle.y;
+    if(type==='knee' && i===1){goal.y+=hit*.38;goal.z+=hit*.22;}
     solveLeg(leg,rig.root.localToWorld(goal),forward,rootQ);
   }
 }

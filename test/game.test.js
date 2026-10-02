@@ -35,20 +35,22 @@ test('support yields the ball lane and AI separation resolves overlapping fighte
   }
 });
 
-test('shot preview shows a scoring ring shot and respects court bounces',()=>{
-  const origin=new THREE.Vector3(0,BALL_RADIUS,0),points=predictShot(origin,Math.PI/2,ring);
-  assert.ok(points.some(point=>point.x>ring.x),'ring shot guide passes through the goal');
-  assert.ok(points.length<49,'guide ends after scoring');
-  assert.deepEqual(origin.toArray(),[0,BALL_RADIUS,0],'prediction does not move the real ball');
-  const miss=predictShot(new THREE.Vector3(0,BALL_RADIUS,13),0,ring);
-  assert.ok(miss.every(point=>point.y>=BALL_RADIUS && Math.abs(point.z)<=16-BALL_RADIUS+.00001),'guide stays inside court boundaries');
-  assert.ok(miss.some((point,i)=>i>0 && point.z<miss[i-1].z),'wall bounce reverses the guide');
+test('manual shot preview follows the same ball integrator and leaves the origin intact',()=>{
+  const origin=new THREE.Vector3(0,.8,0),options={type:'knee',seconds:.6,velocity:new THREE.Vector3(1,0,0)};
+  const points=predictShot(origin,Math.PI/2,ring,options);
+  const simulated=new BallState(()=>.5);simulated.pos.copy(origin);simulated.vel.copy(shotVelocity(origin,Math.PI/2,ring,options));
+  for(let i=1;i<points.length;i++){simulated.update(.05,ring);assert.ok(simulated.pos.distanceTo(points[i])<1e-8);}
+  assert.deepEqual(origin.toArray(),[0,.8,0]);
+  const miss=predictShot(new THREE.Vector3(0,.8,13),0,ring,{seconds:.75});
+  assert.ok(miss.every(point=>point.y>=BALL_RADIUS && Math.abs(point.z)<=16-BALL_RADIUS+.00001));
+  assert.ok(miss.at(-1).z>=14.7,'guide ends when the opponent back zone is crossed');
 });
 
-test('resting-ball ring shots score exactly once across frame rates',()=>{
+test('known ballistic ring shots score exactly once across frame rates',()=>{
   for(const fps of [20,30,60,120]) for(const x of [-4,0,3]){
     const b=new BallState();b.pos.set(x,BALL_RADIUS,0);
-    b.vel.copy(shotVelocity(b.pos,Math.PI/2,ring));
+    const flight=.65;
+    b.vel.set((ring.x-x)/flight,(ring.y-b.pos.y+8.5*flight*flight)/flight,0);
     let count=0;
     for(let i=0;i<fps*3;i++)count+=Number(b.update(1/fps,ring));
     assert.equal(count,1,'fps='+fps+', x='+x);

@@ -5,12 +5,12 @@ A mobile-first 3D action-sports game inspired by Pok-Ta-Pok and Mesoamerican vis
 ## Playable vertical slice
 
 - Solo Challenge: score as many rings as possible in 60 seconds
-- 2v2 Team Match: you and an AI teammate face two rival AIs; first team to three rings wins
+- 2v2 Team Match: you and an AI teammate face two rival AIs; first to 20 points or the lead after three minutes; tied timer starts ring sudden death
 - Heavy bouncing ball, vertical stone ring, supplied arena, team-aware scoring
 - Keyboard/mouse and mobile virtual-joystick controls; pause, resume, and switch modes during a match
 - GitHub Pages-compatible Vite build
 
-This is an incremental 2v2 demo. The planned 3v3 roles, combat, and pass-chain systems are not part of this slice.
+Playable rules include charge/release Hip, Elbow and Knee strikes, passing, body blocks, shoulder charges, one-bounce faults, back zones and wall combos. Practice, difficulty, solo escalation and saved progression are included. See [controls and rules](docs/PLAYABLE_RULES.md). 3v3 specialist abilities and exact per-limb contact remain future work.
 
 ## Original vision
 
@@ -51,3 +51,5 @@ The browser suite runs Chromium and WebKit at phone portrait and landscape sizes
 ## Publish
 
 A repository administrator must enable **Settings → Pages → Build and deployment → Source: GitHub Actions** once. The deployment workflow cannot create the Pages site with its limited token. After the branch is merged and validation passes, rerun **Deploy playable demo** and verify the resulting public URL on iPhone Safari. See [docs/IPHONE_QA.md](docs/IPHONE_QA.md) for the release checks.
+
+The pinned character GLB is committed in this repository and verified locally before build, test and development. These steps no longer download an asset from another repository.
