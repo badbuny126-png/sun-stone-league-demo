@@ -5,14 +5,45 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { BallState, BALL_RADIUS } from '../src/ball.js';
-import { shotVelocity } from '../src/shot.js';
+import { shotVelocity, predictShot } from '../src/shot.js';
 import { spawnPair, spawnRoster, animateCharacter, TARGET_HEIGHT } from '../src/characters.js';
-import { TEAM_ROSTER, getAITarget, scoringTeam, shouldAIAttemptHit } from '../src/teams.js';
+import { TEAM_ROSTER, getAITarget, getAISteering, scoringTeam, shouldAIAttemptHit } from '../src/teams.js';
 import { alignArena, ARENA_LAYOUT } from '../src/arena-layout.js';
 import { RING_HEIGHT, COURT_WIDTH } from '../src/court.js';
 import { footCycle, strikePose, STRIKE_DURATION, STRIKE_CONTACT } from '../src/motion.js';
 import { framePlay } from '../src/framing.js';
 const ring=new THREE.Vector3(COURT_WIDTH/2-1.25,RING_HEIGHT,0);
+
+test('support yields the ball lane and AI separation resolves overlapping fighters',()=>{
+  const ball=new THREE.Vector3(),player=new THREE.Vector3(0,0,.5);
+  assert.ok(getAITarget(TEAM_ROSTER[1],ball,player).distanceTo(ball)>2.4);
+  const actors=[{id:'a',position:ball.clone()},{id:'b',position:ball.clone()}];
+  const a=getAISteering(actors[0],ball,actors),b=getAISteering(actors[1],ball,actors);
+  assert.ok(a.x*b.x<0,'coincident fighters choose opposite escape directions');
+  for(const fps of [20,60]) {
+    const bodies=[{id:'player',team:'sun',position:player.clone()},...TEAM_ROSTER.slice(1).map(f=>({...f,position:new THREE.Vector3(.1,0,0)}))];
+    for(let frame=0;frame<fps*4;frame++) {
+      const snapshot=bodies.map(b=>({...b,position:b.position.clone()}));
+      for(const actor of bodies.slice(1)) {
+        const target=getAITarget(actor,ball,player,snapshot),steer=getAISteering(actor,target,snapshot);
+        assert.ok(steer.length()<=1.00001,'steering respects movement speed');
+        actor.position.addScaledVector(steer,5/fps);
+      }
+    }
+    for(let i=0;i<bodies.length;i++)for(let j=i+1;j<bodies.length;j++)
+      assert.ok(bodies[i].position.distanceTo(bodies[j].position)>.75,'fighters separate at '+fps+' fps');
+  }
+});
+
+test('shot preview shows a scoring ring shot and respects court bounces',()=>{
+  const origin=new THREE.Vector3(0,BALL_RADIUS,0),points=predictShot(origin,Math.PI/2,ring);
+  assert.ok(points.some(point=>point.x>ring.x),'ring shot guide passes through the goal');
+  assert.ok(points.length<49,'guide ends after scoring');
+  assert.deepEqual(origin.toArray(),[0,BALL_RADIUS,0],'prediction does not move the real ball');
+  const miss=predictShot(new THREE.Vector3(0,BALL_RADIUS,13),0,ring);
+  assert.ok(miss.every(point=>point.y>=BALL_RADIUS && Math.abs(point.z)<=16-BALL_RADIUS+.00001),'guide stays inside court boundaries');
+  assert.ok(miss.some((point,i)=>i>0 && point.z<miss[i-1].z),'wall bounce reverses the guide');
+});
 
 test('resting-ball ring shots score exactly once across frame rates',()=>{
   for(const fps of [20,30,60,120]) for(const x of [-4,0,3]){

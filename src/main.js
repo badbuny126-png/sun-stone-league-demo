@@ -4,8 +4,8 @@ import { loadCharacters, animateCharacter } from './characters.js';
 import { createBall, updateBallVisual, BallState } from './ball.js';
 import { setupInput, getMoveVector } from './input.js';
 import * as Input from './input.js';
-import { shotVelocity } from './shot.js';
-import { getAITarget, scoringTeam, shouldAIAttemptHit } from './teams.js';
+import { shotVelocity, predictShot } from './shot.js';
+import { getAITarget, getAISteering, scoringTeam, shouldAIAttemptHit } from './teams.js';
 import { STRIKE_DURATION, STRIKE_CONTACT } from './motion.js';
 import { createEffects } from './effects.js';
 import { framePlay } from './framing.js';
@@ -83,6 +83,11 @@ aimRing.rotation.x = -Math.PI / 2;
 const aimArrow = new THREE.Mesh(new THREE.ConeGeometry(.16, .55, 8), new THREE.MeshBasicMaterial({ color: 0xffbc45 }));
 aimArrow.rotation.x = Math.PI / 2; aimArrow.position.z = .82; aimArrow.position.y = .08;
 aimGroup.add(aimRing, aimArrow); scene.add(aimGroup);
+const shotGuidePositions=new Float32Array(49*3),shotGuideGeometry=new THREE.BufferGeometry();
+shotGuideGeometry.setAttribute('position',new THREE.BufferAttribute(shotGuidePositions,3).setUsage(THREE.DynamicDrawUsage));
+const shotGuide=new THREE.Line(shotGuideGeometry,new THREE.LineDashedMaterial({color:0xffe3a0,transparent:true,opacity:.85,dashSize:.24,gapSize:.12,depthWrite:false}));
+shotGuide.frustumCulled=false;shotGuide.visible=false;scene.add(shotGuide);
+let guideTime=0;
 
 const effects=createEffects(scene);
 const burst=effects.burst;
@@ -123,7 +128,7 @@ if (['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParam
     snapshot: () => ({
       mode, phase, paused, scorePlayer, scoreAI, lastTouch,
       player: playerChar?.position.toArray() ?? null,
-      ball:ballState.pos.toArray(),ballSpeed:ballState.vel.length(),playerSwingTimer,
+      ball:ballState.pos.toArray(),ballSpeed:ballState.vel.length(),playerSwingTimer,shotGuideVisible:shotGuide.visible,
       ai: aiFighters.map(({ id, enabled, character }) => ({ id, enabled, position: character.position.toArray() })),
     }),
     queueRingShot: (team) => {
@@ -280,23 +285,21 @@ function updatePlayer(dt) {
 function updateAI(dt) {
   if (mode !== 'versus' || phase !== 'playing') return;
   const ballXZ = new THREE.Vector3(ballState.pos.x, 0, ballState.pos.z);
+  const actors=[{id:'player',team:'sun',position:playerChar.position.clone()},...aiFighters.filter(f=>f.enabled).map(f=>({id:f.id,team:f.team,position:f.character.position.clone()}))];
   for (const fighter of aiFighters) {
     if (!fighter.enabled) continue;
     const character = fighter.character;
     const previous = character.position.clone();
     fighter.hitCooldown = Math.max(0, fighter.hitCooldown - dt);
-    const toBall = ballXZ.clone().sub(character.position);
-    const distance = toBall.length();
-    if (distance > HIT_RANGE * .82) {
-      toBall.copy(getAITarget(fighter, ballXZ, playerChar.position).sub(character.position));
-      if (toBall.lengthSq() > .01) {
-        toBall.normalize();
+    const targetPosition=getAITarget(fighter,ballXZ,playerChar.position,actors);
+    const toBall=getAISteering({id:fighter.id,position:previous},targetPosition,actors);
+    if(fighter.swingTimer<=0 && toBall.lengthSq()>.01) {
         character.position.x = THREE.MathUtils.clamp(character.position.x + toBall.x * AI_SPEED * dt, -COURT_WIDTH / 2 + .75, COURT_WIDTH / 2 - .75);
         character.position.z = THREE.MathUtils.clamp(character.position.z + toBall.z * AI_SPEED * dt, -COURT_LENGTH / 2 + 1, COURT_LENGTH / 2 - 1);
         const target=Math.atan2(toBall.x,toBall.z),turn=Math.atan2(Math.sin(target-character.rotation.y),Math.cos(target-character.rotation.y));
         if(fighter.swingTimer<=0)character.rotation.y+=turn*(1-Math.exp(-12*dt));
-      }
-    } else if (shouldAIAttemptHit(ballState.pos.distanceTo(character.position.clone().setY(1.05)), fighter.hitCooldown, ballState.heldCooldown, HIT_RANGE)) {
+    }
+    if(targetPosition.distanceTo(ballXZ)<HIT_RANGE && shouldAIAttemptHit(ballState.pos.distanceTo(character.position.clone().setY(1.05)), fighter.hitCooldown, ballState.heldCooldown, HIT_RANGE)) {
       const angle = Math.atan2(ringWorldPos.x - character.position.x, -character.position.z) + (Math.random() - .5) * .24;
       character.rotation.y=angle;fighter.pendingStrike={angle,team:fighter.team};
       fighter.hitCooldown = .8 + Math.random() * .45;
@@ -360,6 +363,18 @@ function tick() {
   }
   const ready=playerChar && phase==='playing' && playerHitCooldown<=0 && ballState.pos.distanceTo(playerChar.position.clone().setY(1.05))<=HIT_RANGE;
   $('hit-btn').classList.toggle('ready',Boolean(ready));
+  const showGuide=Boolean(ready && !paused && playerSwingTimer<=0);
+  guideTime-=dt;
+  if(showGuide && (!shotGuide.visible || guideTime<=0)) {
+    const points=predictShot(ballState.pos,Input.mouseAimAngle,ringWorldPos);
+    points.forEach((point,i)=>point.toArray(shotGuidePositions,i*3));
+    shotGuideGeometry.attributes.position.needsUpdate=true;shotGuideGeometry.setDrawRange(0,points.length);
+    shotGuide.computeLineDistances();guideTime=.1;
+  }
+  shotGuide.visible=showGuide;
+  $('hint').textContent=ready
+    ? (matchMedia('(pointer: coarse)').matches?'IN RANGE · Drag court to aim · Tap STRIKE':'IN RANGE · Mouse to aim · Space to strike')
+    : (matchMedia('(pointer: coarse)').matches?'Move near the ball · Drag court to aim':'Move near the ball · WASD to move · Mouse to aim');
   aimRing.material.color.setHex(ready?0xffd27a:0x43d5bb);
   if (playerChar) {
     currentAimAngle = Input.mouseAimAngle;

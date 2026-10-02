@@ -46,6 +46,12 @@ try {
           await page.getByRole('button',{name:'Strike the ball'}).tap();
           assert.equal(await page.locator('#callout').textContent(),'GET CLOSER','touch strike is handled');
           await page.evaluate(()=>window.__sunStoneTest.setupPlayerStrike(true));
+          await page.waitForFunction(()=>window.__sunStoneTest.snapshot().shotGuideVisible,null,{timeout:5000});
+          assert.equal(await page.locator('#hit-btn').evaluate(button=>button.classList.contains('ready')),true,'strike button highlights in range');
+          await page.screenshot({path:'test-output/'+name+'-'+orientation+'-aim-guide.png'});
+          await page.getByRole('button',{name:'Pause game'}).click();
+          await page.waitForFunction(()=>!window.__sunStoneTest.snapshot().shotGuideVisible);
+          await page.getByRole('button',{name:'Resume game'}).click();
           await page.getByRole('button',{name:'Strike the ball'}).tap();
           await page.waitForFunction(()=>document.getElementById('callout').textContent==='KINETIC STRIKE!',null,{timeout:10000});
           assert.ok((await page.evaluate(()=>window.__sunStoneTest.snapshot())).ballSpeed>4,'an in-range touch swing launches the ball at contact');

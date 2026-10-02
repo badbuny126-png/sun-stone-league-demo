@@ -16,10 +16,33 @@ export function getSupportTarget(fighter, ballPosition, playerPosition) {
   return ballPosition.clone().add(new THREE.Vector3(lane, 0, .9));
 }
 
-export function getAITarget(fighter, ballPosition, playerPosition) {
-  return fighter.role === 'support'
+export function getAITarget(fighter, ballPosition, playerPosition, actors=[]) {
+  const target=fighter.role === 'support'
     ? getSupportTarget(fighter, ballPosition, playerPosition)
     : ballPosition.clone();
+  if(fighter.role==='support') {
+    const teammate=actors.find(actor=>actor.team===fighter.team && actor.id!==fighter.id);
+    const teammatePosition=teammate?.position ?? (fighter.team==='sun'?playerPosition:null);
+    // Leave a clear lane for the teammate who is already contesting the ball.
+    if(teammatePosition && teammatePosition.distanceTo(ballPosition)<3.2)
+      target.sub(ballPosition).normalize().multiplyScalar(2.5).add(ballPosition);
+  }
+  return target;
+}
+
+export function getAISteering(fighter,target,actors) {
+  const direction=target.clone().sub(fighter.position).setY(0);
+  if(direction.length()>1)direction.normalize();
+  for(const other of actors) {
+    if(other.id===fighter.id)continue;
+    const away=fighter.position.clone().sub(other.position).setY(0),distance=away.length();
+    if(distance>=1.5)continue;
+    if(distance<.001)away.set(fighter.id<other.id?-1:1,0,0);
+    else away.divideScalar(distance);
+    direction.addScaledVector(away,(1-distance/1.5)*2.8);
+  }
+  if(direction.length()>1)direction.normalize();
+  return direction;
 }
 
 export function shouldAIAttemptHit(distance, hitCooldown, heldCooldown, hitRange) {

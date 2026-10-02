@@ -8,12 +8,13 @@
 - World-scale masonry on court walls, fine floor pores and relief, warmer directional light, cool fill and distance haze.
 - Fixed particle pool for dust and impact sparks, expanding shockwaves, smoother starts/stops and turns, and an illuminated strike button when in range.
 - Camera framing includes the player, ball and scoring ring in both phone orientations.
+- AI fighters steer away from nearby bodies and the support fighter leaves space when a teammate contests the ball. An in-range dashed shot guide uses the same bounce/rim physics as the game; it predicts a strike from the ball's current position and cannot account for movement during windup or a later opponent strike.
 
 ## Highest-value next work
 
 1. **Authored animation clips and art review.** The supplied GLB has a Mixamo skeleton but no animation clips. This pass uses procedural posing; it cannot provide the nuance of an animator-approved run. Author idle, jog, sprint, hip strike and recovery clips; retarget to this skeleton; match root speed to gameplay speed; use foot IK as a correction. Review 60 fps recordings from front, side and rear, especially elbows, shoulders, fingers and sharp turns.
-2. **A guided first ring.** Add a short practice sequence that teaches move, aim and strike, with a visible target trajectory and a restart checkpoint. Verify a new player can score without reading external instructions.
-3. **Team choices.** Add pass/receive and defensive interception, distinct teammate roles, and three difficulty settings. Keep opponents from piling into the same ball position; test fairness and input clarity on touch screens.
+2. **A guided first ring.** Extend the shot guide with a short practice sequence that teaches move, aim and strike and provides a restart checkpoint. Verify a new player can score without reading external instructions.
+3. **Team choices.** Add pass/receive and defensive interception, distinct teammate roles, and three difficulty settings. Playtest the new spacing for fairness, especially at walls and corners, and verify input clarity on touch screens.
 4. **Stronger arena assets.** Replace the low-resolution source atlas with properly authored stone, carved glyph and vegetation maps, including consistent texel density and normal/roughness maps. The procedural detail improves close surfaces but cannot recover missing source detail or silhouette geometry.
 5. **A measured mobile quality tier.** Run the physical-device release checklist before choosing defaults. If needed, add a Low/Standard quality control for pixel ratio and shadows; use recorded frame times and thermal behavior to choose the tier.
 
