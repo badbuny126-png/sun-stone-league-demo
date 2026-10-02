@@ -6,6 +6,8 @@ import { setupInput, getMoveVector } from './input.js';
 import * as Input from './input.js';
 import { shotVelocity } from './shot.js';
 import { getAITarget, scoringTeam, shouldAIAttemptHit } from './teams.js';
+import { STRIKE_DURATION, STRIKE_CONTACT } from './motion.js';
+import { createEffects } from './effects.js';
 
 const $ = (id) => document.getElementById(id);
 function hasWebGL() {
@@ -21,10 +23,10 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.12;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0xaab3ac, .004);
+scene.fog = new THREE.FogExp2(0xc49a7a, .009);
 const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, .1, 400);
 camera.position.set(0, 4.5, 8);
 addEventListener('resize', () => {
@@ -79,29 +81,10 @@ const aimArrow = new THREE.Mesh(new THREE.ConeGeometry(.16, .55, 8), new THREE.M
 aimArrow.rotation.x = Math.PI / 2; aimArrow.position.z = .82; aimArrow.position.y = .08;
 aimGroup.add(aimRing, aimArrow); scene.add(aimGroup);
 
-const particleGeometry = new THREE.SphereGeometry(.055, 5, 4);
-const particles = [];
-function burst(position, color = 0xffa52b, count = 16) {
-  const material = new THREE.MeshBasicMaterial({ color, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-  material.userData.remaining=count;
-  for (let i = 0; i < count; i += 1) {
-    const particle = new THREE.Mesh(particleGeometry, material);
-    particle.position.copy(position);
-    particle.userData.velocity = new THREE.Vector3((Math.random()-.5)*5, Math.random()*4.5, (Math.random()-.5)*5);
-    particle.userData.life = .45 + Math.random() * .35;
-    scene.add(particle); particles.push(particle);
-  }
-}
-function updateParticles(dt) {
-  for (let i = particles.length - 1; i >= 0; i -= 1) {
-    const particle = particles[i];
-    particle.userData.life -= dt;
-    particle.userData.velocity.y -= 8 * dt;
-    particle.position.addScaledVector(particle.userData.velocity, dt);
-    particle.material.opacity = Math.max(0, particle.userData.life * 1.8);
-    if (particle.userData.life <= 0) { scene.remove(particle); particles.splice(i,1); if(--particle.material.userData.remaining===0)particle.material.dispose(); }
-  }
-}
+const effects=createEffects(scene);
+const burst=effects.burst;
+const updateParticles=effects.update;
+let dustTime=0;
 
 let audioContext = null;
 function tone(frequency, duration, type = 'sine', volume = .06) {
@@ -119,6 +102,8 @@ function tone(frequency, duration, type = 'sine', volume = .06) {
 const TARGET_SCORE = 3, SOLO_SECONDS = 60, HIT_RANGE = 2.05, PLAYER_SPEED = 7.2, AI_SPEED = 5.05;
 let mode = null, phase = 'menu', scorePlayer = 0, scoreAI = 0, timeLeft = SOLO_SECONDS;
 let playerHitCooldown = 0, playerSwingTimer = 0;
+let playerPendingStrike=null;
+const playerVelocity=new THREE.Vector2();
 let lastTouch = 'sun', currentAimAngle = 0, shake = 0;
 let goalTime=0,countdownTime=0,paused=false,playerMoveSpeed=0;
 
@@ -155,6 +140,7 @@ function callout(text, kind = '') {
 function resetPositions() {
   ballState.reset(); Input.resetInput();
   playerHitCooldown=playerSwingTimer=0;
+  playerPendingStrike=null;playerVelocity.set(0,0);
   lastTouch='sun';playerMoveSpeed=0;
   ballMesh.userData.history.length=0;
   if (playerChar) { playerChar.position.set(-2.2, 0, -7); playerChar.rotation.y = 0; }
@@ -163,6 +149,7 @@ function resetPositions() {
     fighter.character.rotation.y = fighter.team === 'sun' ? Math.PI : 0;
     fighter.hitCooldown = 0;
     fighter.swingTimer = 0;
+    fighter.pendingStrike=null;
     fighter.moveSpeed = 0;
   }
 }
@@ -233,7 +220,8 @@ function tryPlayerHit() {
   if (paused || phase !== 'playing' || !playerChar || playerHitCooldown > 0 || ballState.heldCooldown > 0) return;
   if (ballState.pos.distanceTo(playerChar.position.clone().setY(1.05)) > HIT_RANGE) { callout('GET CLOSER', 'muted'); tone(90,.08,'square',.025); return; }
   currentAimAngle=Input.mouseAimAngle;playerChar.rotation.y=currentAimAngle;
-  applyHit(playerChar.position,currentAimAngle,'sun');playerHitCooldown=.45;playerSwingTimer=.45;
+  playerPendingStrike={angle:currentAimAngle,team:'sun'};
+  playerHitCooldown=.65;playerSwingTimer=STRIKE_DURATION;
 }
 setupInput(canvas, camera, () => playerChar?.position, tryPlayerHit);
 $('hint').textContent=matchMedia('(pointer: coarse)').matches?'Left stick: move · Drag court: aim · Strike near ball':'WASD: move · Mouse: aim · Space: hip strike';
@@ -266,9 +254,11 @@ function updatePlayer(dt) {
   if (!playerChar || phase !== 'playing') return;
   const { mx, mz, moving } = getMoveVector();
   const previous=playerChar.position.clone();
+  playerVelocity.x=THREE.MathUtils.damp(playerVelocity.x,mx*PLAYER_SPEED,moving?14:20,dt);
+  playerVelocity.y=THREE.MathUtils.damp(playerVelocity.y,mz*PLAYER_SPEED,moving?14:20,dt);
+  playerChar.position.x = THREE.MathUtils.clamp(playerChar.position.x + playerVelocity.x * dt, -COURT_WIDTH / 2 + .75, COURT_WIDTH / 2 - .75);
+  playerChar.position.z = THREE.MathUtils.clamp(playerChar.position.z + playerVelocity.y * dt, -COURT_LENGTH / 2 + 1, COURT_LENGTH / 2 - 1);
   if (moving) {
-    playerChar.position.x = THREE.MathUtils.clamp(playerChar.position.x + mx * PLAYER_SPEED * dt, -COURT_WIDTH / 2 + .75, COURT_WIDTH / 2 - .75);
-    playerChar.position.z = THREE.MathUtils.clamp(playerChar.position.z + mz * PLAYER_SPEED * dt, -COURT_LENGTH / 2 + 1, COURT_LENGTH / 2 - 1);
     const target=Math.atan2(mx,mz),turn=Math.atan2(Math.sin(target-playerChar.rotation.y),Math.cos(target-playerChar.rotation.y));
     if(playerSwingTimer<=0)playerChar.rotation.y+=turn*(1-Math.exp(-14*dt));
   }
@@ -292,16 +282,27 @@ function updateAI(dt) {
         toBall.normalize();
         character.position.x = THREE.MathUtils.clamp(character.position.x + toBall.x * AI_SPEED * dt, -COURT_WIDTH / 2 + .75, COURT_WIDTH / 2 - .75);
         character.position.z = THREE.MathUtils.clamp(character.position.z + toBall.z * AI_SPEED * dt, -COURT_LENGTH / 2 + 1, COURT_LENGTH / 2 - 1);
-        character.rotation.y = Math.atan2(toBall.x, toBall.z);
+        const target=Math.atan2(toBall.x,toBall.z),turn=Math.atan2(Math.sin(target-character.rotation.y),Math.cos(target-character.rotation.y));
+        if(fighter.swingTimer<=0)character.rotation.y+=turn*(1-Math.exp(-12*dt));
       }
     } else if (shouldAIAttemptHit(ballState.pos.distanceTo(character.position.clone().setY(1.05)), fighter.hitCooldown, ballState.heldCooldown, HIT_RANGE)) {
       const angle = Math.atan2(ringWorldPos.x - character.position.x, -character.position.z) + (Math.random() - .5) * .24;
-      applyHit(character.position, angle, fighter.team);
+      character.rotation.y=angle;fighter.pendingStrike={angle,team:fighter.team};
       fighter.hitCooldown = .8 + Math.random() * .45;
-      fighter.swingTimer = .45;
+      fighter.swingTimer = STRIKE_DURATION;
     }
     fighter.moveSpeed = dt > 0 ? character.position.distanceTo(previous) / dt : 0;
   }
+}
+
+function advanceStrike(character,remaining,pending,dt) {
+  const next=Math.max(0,remaining-dt);
+  if(pending && remaining>STRIKE_CONTACT && next<=STRIKE_CONTACT) {
+    if(phase==='playing' && ballState.heldCooldown<=0 && ballState.pos.distanceTo(character.position.clone().setY(1.05))<=HIT_RANGE)
+      applyHit(character.position,pending.angle,pending.team);
+    pending=null;
+  }
+  return {remaining:next,pending};
 }
 
 const desiredCamera = new THREE.Vector3(); const cameraTarget = new THREE.Vector3();
@@ -341,17 +342,28 @@ function tick() {
   }
   ballMesh.position.copy(ballState.pos); updateBallVisual(ballMesh, ballState.vel, dt);
   updateCourt(arena, elapsed); updateParticles(dt); updateHUD();
+  dustTime-=dt;
+  if(playerChar && phase==='playing' && playerMoveSpeed>1 && dustTime<=0) {
+    burst(playerChar.position,0xcdb18a,3,true);dustTime=.13;
+  }
+  const ready=playerChar && phase==='playing' && playerHitCooldown<=0 && ballState.pos.distanceTo(playerChar.position.clone().setY(1.05))<=HIT_RANGE;
+  $('hit-btn').classList.toggle('ready',Boolean(ready));
+  aimRing.material.color.setHex(ready?0xffd27a:0x43d5bb);
   if (playerChar) {
     currentAimAngle = Input.mouseAimAngle;
     aimGroup.position.set(playerChar.position.x, .035, playerChar.position.z); aimGroup.rotation.y = currentAimAngle;
     aimRing.material.opacity = .5 + Math.sin(elapsed * 5) * .18;
   }
   updateCamera(dt);
-  playerSwingTimer = Math.max(0, playerSwingTimer - dt);
+  if(playerChar) {
+    const strike=advanceStrike(playerChar,playerSwingTimer,playerPendingStrike,dt);
+    playerSwingTimer=strike.remaining;playerPendingStrike=strike.pending;
+  }
   animateCharacter(playerRig,phase==='playing'?playerMoveSpeed:0,playerSwingTimer,dt,elapsed);
   for (const fighter of aiFighters) {
     if (!fighter.character.visible || mode !== 'versus') continue;
-    fighter.swingTimer = Math.max(0, fighter.swingTimer - dt);
+    const strike=advanceStrike(fighter.character,fighter.swingTimer,fighter.pendingStrike,dt);
+    fighter.swingTimer=strike.remaining;fighter.pendingStrike=strike.pending;
     animateCharacter(fighter.rig,mode==='versus'&&phase==='playing'?fighter.moveSpeed:0,fighter.swingTimer,dt,elapsed);
   }
 

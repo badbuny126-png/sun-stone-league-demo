@@ -10,6 +10,7 @@ import { spawnPair, spawnRoster, animateCharacter, TARGET_HEIGHT } from '../src/
 import { TEAM_ROSTER, getAITarget, scoringTeam, shouldAIAttemptHit } from '../src/teams.js';
 import { alignArena, ARENA_LAYOUT } from '../src/arena-layout.js';
 import { RING_HEIGHT, COURT_WIDTH } from '../src/court.js';
+import { footCycle, strikePose, STRIKE_DURATION, STRIKE_CONTACT } from '../src/motion.js';
 const ring=new THREE.Vector3(COURT_WIDTH/2-1.25,RING_HEIGHT,0);
 
 test('resting-ball ring shots score exactly once across frame rates',()=>{
@@ -86,6 +87,11 @@ test('real characters are equally scaled, animate independently, stay grounded a
   }
   assert.ok(Math.abs(heights[0]-heights[1])<1e-5);
   const rig=pair.playerBones,rival=pair.aiBones.rest.LeftUpLeg.bone.quaternion.clone();
+  let sunMesh,rivalMesh;
+  pair.playerChar.traverse(o=>{if(o.isSkinnedMesh)sunMesh=o;});
+  pair.aiChar.traverse(o=>{if(o.isSkinnedMesh)rivalMesh=o;});
+  assert.equal(sunMesh.material.vertexColors,true);
+  assert.notDeepEqual(sunMesh.geometry.attributes.color.array,rivalMesh.geometry.attributes.color.array,'team outfits use different pigments');
   animateCharacter(rig,7.2,0,1/60,1);
   assert.ok(rig.rest.LeftUpLeg.bone.quaternion.angleTo(rig.rest.LeftUpLeg.quaternion)>.001);
   assert.ok(pair.aiBones.rest.LeftUpLeg.bone.quaternion.angleTo(rival)<1e-6);
@@ -97,4 +103,25 @@ test('real characters are equally scaled, animate independently, stay grounded a
   assert.ok(rig.rest.Hips.bone.quaternion.angleTo(rig.rest.Hips.quaternion)>.2);
   for(let i=0;i<120;i++)animateCharacter(rig,0,0,1/60,2+i/60);
   assert.ok(rig.rest.Hips.bone.quaternion.angleTo(rig.rest.Hips.quaternion)<.01);
+  for(const heading of [0,Math.PI/2,Math.PI]) {
+    rig.root.rotation.y=heading;
+    for(let i=0;i<60;i++) {
+      animateCharacter(rig,4,0,1/60,i/60);rig.root.updateMatrixWorld(true);
+      for(let side=0;side<rig.legs.length;side++) {
+        const leg=rig.legs[side],cycle=footCycle(rig.gait+side*.5,1,1);
+        if(cycle.planted)assert.ok(Math.abs(leg.ankle.getWorldPosition(new THREE.Vector3()).y-leg.origin.y)<.035,'stance foot stays grounded at heading '+heading);
+      }
+    }
+  }
+  animateCharacter(rig,4,.35,1/60,3);
+  assert.ok(rig.rest.RightHand.bone.quaternion.angleTo(rig.rest.RightHand.quaternion)>.02,'wrist participates in the strike');
+});
+
+test('foot swing clears the ground and strike pose anticipates contact then recovers',()=>{
+  assert.equal(footCycle(.2,1,.2).y,0);
+  assert.ok(footCycle(.8,1,.2).y>.19);
+  assert.ok(Math.abs(footCycle(.99999,1,.2).z-footCycle(0,1,.2).z)<.001,'landing is continuous');
+  assert.ok(strikePose(STRIKE_DURATION*.8).windup>.8);
+  assert.ok(strikePose(STRIKE_CONTACT).drive>.9);
+  assert.deepEqual(strikePose(0),{windup:0,drive:0});
 });

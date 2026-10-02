@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { TEAM_ROSTER } from './teams.js';
+import { dressWarrior } from './character-material.js';
+import { footCycle, solveLeg, strikePose } from './motion.js';
 
 export const TARGET_HEIGHT = 2.2;
 
@@ -38,6 +40,12 @@ function proceduralWarrior(team) {
   const rightArm = new THREE.Group(); rightArm.position.set(.43, 1.72, 0); body.add(rightArm);
   mesh(new THREE.CapsuleGeometry(.11, .58, 4, 7), skin, [0, -.31, 0], leftArm);
   mesh(new THREE.CapsuleGeometry(.11, .58, 4, 7), skin, [0, -.31, 0], rightArm);
+  const leftHand=new THREE.Group(),rightHand=new THREE.Group();
+  leftHand.position.y=rightHand.position.y=-.7;leftArm.add(leftHand);rightArm.add(rightHand);
+  for(const hand of [leftHand,rightHand]) {
+    mesh(new THREE.BoxGeometry(.17,.2,.11),skin,[0,-.06,0],hand);
+    mesh(new THREE.CylinderGeometry(.13,.13,.12,8),gold,[0,.08,0],hand);
+  }
   const leftLeg = new THREE.Group(); leftLeg.position.set(-.2, .86, 0); body.add(leftLeg);
   const rightLeg = new THREE.Group(); rightLeg.position.set(.2, .86, 0); body.add(rightLeg);
   mesh(new THREE.CapsuleGeometry(.14, .66, 4, 7), skin, [0, -.38, 0], leftLeg);
@@ -50,7 +58,7 @@ function proceduralWarrior(team) {
     const feather = mesh(new THREE.ConeGeometry(.12, .84, 6), material(featherColors[i % 3]), [(i - 3) * .12, 2.72 + Math.abs(i - 3) * .05, .04], body);
     feather.rotation.z = -(i - 3) * .1;
   }
-  root.userData.rig = { root, body, leftArm, rightArm, leftLeg, rightLeg, procedural: true, baseY: 0 };
+  root.userData.rig = { root, body, leftArm, rightArm, leftHand,rightHand,leftLeg, rightLeg, procedural: true, baseY: 0 };
   return root;
 }
 
@@ -74,28 +82,14 @@ export function normalizeModel(model) {
   model.updateMatrixWorld(true);
 }
 
-function tint(root, color) {
-  root.traverse((object) => {
-    if (!object.isMesh) return;
-    const source = Array.isArray(object.material) ? object.material : [object.material];
-    const materials = source.map((oldMaterial) => {
-      const next = oldMaterial.clone();
-      if (next.color) next.color.lerp(new THREE.Color(color), .48);
-      next.emissive = new THREE.Color(color).multiplyScalar(.06);
-      return next;
-    });
-    object.material = Array.isArray(object.material) ? materials : materials[0];
-  });
-}
-
 function makeContainer(model, team) {
   const container = new THREE.Group();
   normalizeModel(model);
   model.traverse((object) => { if (object.isMesh) { object.castShadow = true; object.receiveShadow = true; } });
-  if (team === 'rival') tint(model, 0xb51f2f);
-  else if (team === 'sun') tint(model, 0x087a70);
   container.add(model);
   const bones = collectBones(model);
+  container.updateMatrixWorld(true);
+  dressWarrior(model, team, bones);
   container.userData.rig = { root: container, body: model, bones, procedural: false, baseY: 0 };
   return container;
 }
@@ -124,6 +118,15 @@ export function prepareImportedRig(rig) {
   rig.feet=['LeftFoot','RightFoot','LeftToeBase','RightToeBase'].map(find).filter(Boolean);
   rig.footHeight=Math.min(...rig.feet.map(bone=>bone.getWorldPosition(new THREE.Vector3()).y));
   rig.gait=0;rig.moveBlend=0;
+  rig.legs=[];
+  for(const side of ['Left','Right']) {
+    const hip=find(side+'UpLeg'),knee=find(side+'Leg'),ankle=find(side+'Foot');
+    if(!hip||!knee||!ankle)continue;
+    const h=hip.getWorldPosition(new THREE.Vector3()),k=knee.getWorldPosition(new THREE.Vector3());
+    const origin=ankle.getWorldPosition(new THREE.Vector3());
+    rig.legs.push({hip,knee,ankle,upper:h.distanceTo(k),lower:k.distanceTo(origin),
+      origin:rig.root.worldToLocal(origin.clone()),footRotation:ankle.getWorldQuaternion(new THREE.Quaternion())});
+  }
 }
 function rotateBone(rig,name,x=0,y=0,z=0) {
   const rest=rig.rest[name];if(!rest)return;
@@ -184,27 +187,39 @@ export function animateCharacter(rig,speed,swingTimer,dt,time) {
     rig.body.position.y=Math.abs(stride)*.04;
     rig.leftLeg.rotation.x=stride*.5;rig.rightLeg.rotation.x=-stride*.5;
     rig.leftArm.rotation.x=-stride*.3;rig.rightArm.rotation.x=stride*.3;
-    const hit=swingTimer>0?Math.sin((1-swingTimer/.45)*Math.PI):0;
+    const {drive:hit,windup}=strikePose(swingTimer);
+    rig.leftHand.rotation.x=stride*.15;rig.rightHand.rotation.z=hit*.3-windup*.2;
     rig.body.rotation.set(0,hit*.75,-hit*.16);
     return;
   }
   rig.moveBlend=THREE.MathUtils.damp(rig.moveBlend,moving,12,dt);
-  rig.gait+=dt*(7+moving*5);
-  const blend=rig.moveBlend,stride=Math.sin(rig.gait)*blend;
-  const hit=swingTimer>0?Math.sin((1-swingTimer/.45)*Math.PI):0;
+  const blend=rig.moveBlend;
+  const strideLength=Math.min(1.35,(rig.legs[0]?.upper+rig.legs[0]?.lower||1)*1.05);
+  rig.gait+=dt*(typeof speed==='number'?speed:moving*7.2)*.6/strideLength;
+  const stride=Math.sin(rig.gait*Math.PI*2)*blend;
+  const {windup,drive:hit}=strikePose(swingTimer);
   for(const rest of Object.values(rig.rest))rest.bone.quaternion.copy(rest.quaternion);
-  rotateBone(rig,'LeftUpLeg',stride*.65);rotateBone(rig,'RightUpLeg',-stride*.65);
-  rotateBone(rig,'LeftLeg',-Math.max(0,-stride)*.95);rotateBone(rig,'RightLeg',-Math.max(0,stride)*.95);
-  rotateBone(rig,'LeftFoot',-stride*.2);rotateBone(rig,'RightFoot',stride*.2);
-  rotateBone(rig,'LeftArm',-stride*.32,0,-hit*.18);rotateBone(rig,'RightArm',stride*.32,0,hit*.18);
-  rotateBone(rig,'LeftForeArm',-.25-blend*.25);rotateBone(rig,'RightForeArm',-.25-blend*.25);
-  rotateBone(rig,'Hips',blend*.06,hit*.72,stride*.025-hit*.13);
-  rotateBone(rig,'Spine',-blend*.04,-hit*.3,Math.sin(time*2)*.01);
-  rotateBone(rig,'Spine1',0,-hit*.2);
-  rig.body.position.copy(rig.basePosition);rig.body.position.x+=hit*.18;
+  rotateBone(rig,'LeftArm',-stride*.42-windup*.25,0,-hit*.2);
+  rotateBone(rig,'RightArm',stride*.42+windup*.35,0,hit*.3);
+  rotateBone(rig,'LeftForeArm',-.28-blend*.3-hit*.25);
+  rotateBone(rig,'RightForeArm',-.28-blend*.3-windup*.35);
+  rotateBone(rig,'LeftHand',stride*.1,hit*.15,-hit*.12);
+  rotateBone(rig,'RightHand',-stride*.1,-windup*.2,hit*.18);
+  for(const side of ['Left','Right'])for(const finger of ['Index','Middle','Ring','Pinky'])for(let joint=1;joint<=3;joint++)
+    rotateBone(rig,side+'Hand'+finger+joint,0,0,(side==='Left'?1:-1)*(.12+blend*.1+windup*.15));
+  rotateBone(rig,'Hips',blend*.1,hit*.72-windup*.24,stride*.025-hit*.13);
+  rotateBone(rig,'Spine',-blend*.07,-hit*.28+windup*.12,Math.sin(time*2)*.01);
+  rotateBone(rig,'Spine1',0,-hit*.18);
+  rotateBone(rig,'Head',-blend*.03,hit*.12);
+  rig.body.position.copy(rig.basePosition);
+  rig.body.position.y-=.08+blend*.12+Math.abs(stride)*.018;
+  rig.body.position.x+=hit*.08;
   rig.root.updateMatrixWorld(true);
-  if(rig.feet.length) {
-    const lowest=Math.min(...rig.feet.map(bone=>bone.getWorldPosition(new THREE.Vector3()).y));
-    rig.body.position.y+=rig.footHeight-lowest;
+  const rootQ=rig.root.getWorldQuaternion(new THREE.Quaternion());
+  const forward=new THREE.Vector3(0,0,1).applyQuaternion(rootQ);
+  for(let i=0;i<rig.legs.length;i++) {
+    const leg=rig.legs[i],cycle=footCycle(rig.gait+i*.5,strideLength*blend,.2*blend);
+    const goal=leg.origin.clone();goal.z+=cycle.z;goal.y+=cycle.y;
+    solveLeg(leg,rig.root.localToWorld(goal),forward,rootQ);
   }
 }

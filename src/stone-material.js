@@ -27,6 +27,9 @@ export function createArenaMaterial(albedo, normal, roughness) {
     `).replace('#include <map_fragment>', `
       #include <map_fragment>
       float stoneMask=1.0-smoothstep(.015,.12,diffuseColor.g-max(diffuseColor.r,diffuseColor.b));
+      // Keep painted jade bands, but soften the atlas saturation into weathered stone.
+      float luminance=dot(diffuseColor.rgb,vec3(.2126,.7152,.0722));
+      diffuseColor.rgb=mix(vec3(luminance),diffuseColor.rgb,.68)*vec3(1.08,1.02,.94);
       float grain=stoneNoise(vStonePosition*18.0);
       diffuseColor.rgb *= 1.0+stoneMask*((grain-.5)*.13+(stoneNoise(vStonePosition*.7)-.5)*.12);
     `).replace('#include <roughnessmap_fragment>', `
@@ -42,6 +45,6 @@ export function createArenaMaterial(albedo, normal, roughness) {
       normal=normalize(max(abs(determinant),0.00000001)*normal-gradient);
     `);
   };
-  material.customProgramCacheKey = () => 'arena-stone-detail-v1';
+  material.customProgramCacheKey = () => 'arena-stone-detail-v2';
   return material;
 }
