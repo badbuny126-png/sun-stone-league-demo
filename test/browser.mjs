@@ -87,6 +87,9 @@ try {
             const current=window.__sunStoneTest.snapshot().ai;
             return current.some((fighter,i)=>Math.hypot(...fighter.position.map((v,j)=>v-initial[i].position[j]))>.1);
           },team,{timeout:5000});
+          await page.screenshot({path:'test-output/'+name+'-'+orientation+'-team-playing.png'});
+          // AI movement is checked above; isolate scoring physics from autonomous goals.
+          await page.evaluate(()=>window.__sunStoneTest.prepareScoringFixture());
           for (const [owner,sunScore,rivalScore] of [['sun',10,0],['rival',10,10],['sun',20,10]]) {
             await page.evaluate(value=>window.__sunStoneTest.queueRingShot(value),owner);
             await page.waitForFunction(([sun,rival])=>{
@@ -107,7 +110,7 @@ try {
           assert.equal(replay.scoreAI,0,'replay clears rival score');
           assert.equal(replay.ai.filter(f=>f.enabled).length,3,'replay keeps the full roster');
           await page.locator('#countdown').waitFor({state:'hidden'});
-          await page.evaluate(()=>window.__sunStoneTest.expireMatch());
+          await page.evaluate(()=>{window.__sunStoneTest.prepareScoringFixture();window.__sunStoneTest.expireMatch();});
           await page.waitForFunction(()=>window.__sunStoneTest.snapshot().suddenDeath);
           await page.evaluate(()=>window.__sunStoneTest.queueRingShot('rival'));
           await page.waitForFunction(()=>window.__sunStoneTest.snapshot().phase==='ended');

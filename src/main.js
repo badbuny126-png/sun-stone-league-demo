@@ -703,6 +703,7 @@ if(['localhost','127.0.0.1'].includes(location.hostname)&&new URLSearchParams(lo
 
   setupPlayerStrike:inRange=>{if(match.mode!=='solo'||match.phase!=='playing')throw Error('Solo must be playing');match.clearRally();ballState.reset();ballState.pos.copy(playerActor.position).add(new THREE.Vector3(0,.8,inRange?.9:10));if(!inRange)ballState.pos.z=playerActor.position.z>0?-12:12;ballState.vel.set(0,0,0);ballState.heldCooldown=0;playerActor.cooldown=playerActor.swingTimer=0;playerActor.pendingStrike=null;},
 
+  prepareScoringFixture:()=>{if(match.mode!=='versus'||match.phase!=='playing')throw Error('Versus must be playing');match.scores={sun:0,rival:0};resetPositions();setAIVisibility(false);},
   queueRingShot:team=>{if(match.mode!=='versus'||match.phase!=='playing')throw Error('Versus must be playing');match.clearRally();match.lastTouch=team;match.lastStriker=team==='sun'?'player':'rival-striker';match.rallyArmed=true;ballState.reset();ballState.pos.set(ringWorldPos.x-3,ringWorldPos.y,ringWorldPos.z);ballState.vel.set(20,0,0);for(const a of aiFighters)a.cooldown=3;},
 
   queueZoneShot:()=>{if(match.mode!=='practice'||match.phase!=='playing')throw Error('Practice must be playing');match.clearRally();match.lastTouch='sun';match.lastStriker='player';match.rallyArmed=true;ballState.reset();ballState.pos.set(3,1,14);ballState.vel.set(0,0,10);},
