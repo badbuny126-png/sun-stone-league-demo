@@ -14,7 +14,8 @@ export function decideAI(actor,actors,ball,match,ring,dt) {
     if(ownThreat){actor.aiState='defend';actor.target=ballXZ.clone().lerp(new THREE.Vector3(ball.pos.x*.6,0,ownEnd+2*toward),actor.role==='support'?.45:0);}
     else if(nearest.id===actor.id){
       actor.aiState='intercept';
-      const aim=Math.abs(ball.pos.z)<5?ring:new THREE.Vector3(ball.pos.x*.35,0,toward*16);
+      const passLane=actor.role==='support'&&teammate&&(teammate.position.z-actor.position.z)*toward>1.3;
+      const aim=passLane?teammate.position:Math.abs(ball.pos.z)<5?ring:new THREE.Vector3(ball.pos.x*.35,0,toward*16);
       const approach=aim.clone().sub(ball.pos).setY(0).normalize();
       actor.target=ballXZ.addScaledVector(new THREE.Vector3(ball.vel.x,0,ball.vel.z),settings.reaction*.45).addScaledVector(approach,-.8);
     }

@@ -44,17 +44,17 @@ try {
           await page.waitForTimeout(400);await page.mouse.up();
           const moved=(await page.evaluate(()=>window.__sunStoneTest.snapshot())).player;
           assert.ok(moved[2]>start[2]+.2,'joystick moves the player');
-          await page.evaluate(()=>window.__sunStoneTest.setupPlayerStrike(false));
+          await page.waitForFunction(()=>{if(window.__sunStoneTest.snapshot().phase!=='playing')return false;window.__sunStoneTest.setupPlayerStrike(false);return true;},null,{timeout:10000});
           await page.getByRole('button',{name:'Strike the ball'}).tap();
           assert.equal(await page.locator('#callout').textContent(),'GET CLOSER','touch strike is handled');
-          await page.evaluate(()=>window.__sunStoneTest.setupPlayerStrike(true));
+          await page.waitForFunction(()=>{if(window.__sunStoneTest.snapshot().phase!=='playing')return false;window.__sunStoneTest.setupPlayerStrike(true);return true;},null,{timeout:10000});
           await page.waitForFunction(()=>window.__sunStoneTest.snapshot().shotGuideVisible,null,{timeout:5000});
           assert.equal(await page.locator('#hit-btn').evaluate(button=>button.classList.contains('ready')),true,'strike button highlights in range');
           await page.screenshot({path:'test-output/'+name+'-'+orientation+'-aim-guide.png'});
           await page.getByRole('button',{name:'Pause game'}).click();
           await page.waitForFunction(()=>!window.__sunStoneTest.snapshot().shotGuideVisible);
           await page.getByRole('button',{name:'Resume game'}).click();
-          await page.evaluate(()=>window.__sunStoneTest.setupPlayerStrike(true));
+          await page.waitForFunction(()=>{if(window.__sunStoneTest.snapshot().phase!=='playing')return false;window.__sunStoneTest.setupPlayerStrike(true);return true;},null,{timeout:10000});
           const strike=await page.locator('#hit-btn').boundingBox();
           await page.mouse.move(strike.x+strike.width/2,strike.y+strike.height/2);await page.mouse.down();
           await page.waitForFunction(()=>window.__sunStoneTest.snapshot().charge>.25);
@@ -67,7 +67,7 @@ try {
 
           await page.waitForTimeout(800);
           await page.waitForFunction(()=>window.__sunStoneTest.snapshot().phase==='playing',null,{timeout:10000});
-          await page.evaluate(()=>window.__sunStoneTest.setupPlayerStrike(true));
+          await page.waitForFunction(()=>{if(window.__sunStoneTest.snapshot().phase!=='playing')return false;window.__sunStoneTest.setupPlayerStrike(true);return true;},null,{timeout:10000});
           await page.locator('#game-canvas').focus();await page.keyboard.down('Space');
           await page.waitForFunction(()=>window.__sunStoneTest.snapshot().charging);
           await page.getByRole('button',{name:'Pause game'}).click();await page.keyboard.up('Space');
