@@ -67,8 +67,9 @@ const charactersReady = loadCharacters(scene, manager, STRIKER_MODEL).then((resu
   setAIVisibility(mode === 'versus');
 });
 Promise.all([arenaReady,charactersReady]).then(()=>{
-  $('loading').classList.add('depart');
-  setTimeout(()=>{$('loading').style.display='none';},450);
+  // The menu must become usable as soon as assets are ready. A delayed timer can
+  // leave the full-screen overlay visible indefinitely in throttled WebKit tabs.
+  $('loading').style.display='none';
 });
 
 const aimGroup = new THREE.Group();
@@ -126,6 +127,24 @@ function setAIVisibility(visible) {
     fighter.character.visible = visible;
     fighter.enabled = visible;
   }
+}
+
+// Browser-check hooks are available only on the local preview server.
+if (['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParams(location.search).get('e2e') === '1') {
+  window.__sunStoneTest = Object.freeze({
+    snapshot: () => ({
+      mode, phase, paused, scorePlayer, scoreAI, lastTouch,
+      player: playerChar?.position.toArray() ?? null,
+      ai: aiFighters.map(({ id, enabled, character }) => ({ id, enabled, position: character.position.toArray() })),
+    }),
+    queueRingShot: (team) => {
+      if (mode !== 'versus' || phase !== 'playing' || !['sun', 'rival'].includes(team)) throw new Error('A versus round must be playing');
+      ballState.reset();
+      ballState.pos.set(ringWorldPos.x - 3, ringWorldPos.y, ringWorldPos.z);
+      ballState.vel.set(20, 0, 0);
+      lastTouch = team;
+    },
+  });
 }
 
 function callout(text, kind = '') {
@@ -187,12 +206,19 @@ function startGame(selectedMode) {
 
 document.querySelectorAll('.mode-btn').forEach((button) => button.addEventListener('click', () => startGame(button.dataset.mode)));
 $('restart-btn').addEventListener('click', () => startGame(mode));
-$('menu-btn').addEventListener('click', () => {
-  phase = 'menu'; mode = null; Input.resetInput();
+function returnToMenu() {
+  phase = 'menu'; mode = null; paused = false;
+  clock.getDelta();
+  resetPositions();
+  $('pause-screen').style.display = 'none';
+  $('countdown').style.display = 'none';
   $('endscreen').style.display = 'none'; $('menu').style.display = 'flex';
+  $('pause-btn').classList.add('hidden'); $('hint').classList.add('hidden');
   $('hud').classList.add('hidden'); $('energy').classList.add('hidden'); $('touch-controls').classList.add('hidden');
-  setAIVisibility(true);
-});
+  setAIVisibility(false);
+}
+$('menu-btn').addEventListener('click', returnToMenu);
+$('pause-menu-btn').addEventListener('click', returnToMenu);
 
 function applyHit(fromPosition, angle, ownerTeam) {
   ballState.vel.copy(shotVelocity(ballState.pos,angle,ringWorldPos));
