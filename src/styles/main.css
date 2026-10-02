@@ -62,3 +62,4 @@ button{font:inherit;cursor:pointer}
 @media(max-height:600px){#action-controls{top:94px;flex-direction:row}#action-controls button{padding:5px 8px}#charge-meter{bottom:59px;width:230px}#hint{bottom:103px;font-size:10px;width:65vw}#ring-warning{top:149px}.panel{max-width:600px}.panel h1{font-size:36px;margin-bottom:8px}.panel p{font-size:12px}.profile-copy{margin-top:8px}}
 
 #hud.hidden ~ #ball-status{display:none}
+@media(max-width:500px) and (min-height:601px){#joystick{left:max(18px,env(safe-area-inset-left));width:96px;height:96px}#joystick-knob{width:36px;height:36px;left:28px;top:28px}#hit-btn{right:max(18px,env(safe-area-inset-right));bottom:max(28px,env(safe-area-inset-bottom));width:88px;height:88px}}

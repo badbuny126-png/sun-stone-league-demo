@@ -12,7 +12,12 @@ export function decideAI(actor,actors,ball,match,ring,dt) {
     const ballXZ=ball.pos.clone().setY(0),ownThreat=(ball.pos.z-ownEnd)*toward<6;
     const nearest=actors.filter(other=>other.team===actor.team).sort((a,b)=>a.position.distanceTo(ballXZ)-b.position.distanceTo(ballXZ))[0];
     if(ownThreat){actor.aiState='defend';actor.target=ballXZ.clone().lerp(new THREE.Vector3(ball.pos.x*.6,0,ownEnd+2*toward),actor.role==='support'?.45:0);}
-    else if(nearest.id===actor.id){actor.aiState='intercept';actor.target=ballXZ.addScaledVector(new THREE.Vector3(ball.vel.x,0,ball.vel.z),settings.reaction*.45);actor.target.z-=toward*.8;}
+    else if(nearest.id===actor.id){
+      actor.aiState='intercept';
+      const aim=Math.abs(ball.pos.z)<5?ring:new THREE.Vector3(ball.pos.x*.35,0,toward*16);
+      const approach=aim.clone().sub(ball.pos).setY(0).normalize();
+      actor.target=ballXZ.addScaledVector(new THREE.Vector3(ball.vel.x,0,ball.vel.z),settings.reaction*.45).addScaledVector(approach,-.8);
+    }
     else {actor.aiState='reposition';actor.target=new THREE.Vector3(actor.role==='support'? -toward*2.5:toward*2.5,0,ball.pos.z+toward*2.8);}
     actor.target.x=THREE.MathUtils.clamp(actor.target.x,-5.8,5.8);actor.target.z=THREE.MathUtils.clamp(actor.target.z,-14,14);
   }

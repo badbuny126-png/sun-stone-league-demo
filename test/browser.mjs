@@ -66,6 +66,7 @@ try {
           assert.deepEqual(errors,[],name+' solo runtime/shader errors');
 
           await page.waitForTimeout(800);
+          await page.waitForFunction(()=>window.__sunStoneTest.snapshot().phase==='playing',null,{timeout:10000});
           await page.evaluate(()=>window.__sunStoneTest.setupPlayerStrike(true));
           await page.locator('#game-canvas').focus();await page.keyboard.down('Space');
           await page.waitForFunction(()=>window.__sunStoneTest.snapshot().charging);
@@ -125,6 +126,7 @@ try {
           assert.deepEqual(errors,[],name+' practice errors');
           console.log(name+' '+orientation+': charge/release, pause cancellation, difficulty, AI, 10-point rings, win/replay, sudden death and practice passed');
         } catch (error) {
+          console.error('Failure state:',await page.evaluate(()=>window.__sunStoneTest?.snapshot()).catch(()=>null));
           await page.screenshot({path:'test-output/'+name+'-'+orientation+'-failure.png'}).catch(()=>{});
           await writeFile('test-output/'+name+'-'+orientation+'-failure.txt',String(error)+'\n'+errors.join('\n'));
           throw error;

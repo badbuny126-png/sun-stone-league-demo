@@ -339,6 +339,7 @@ function startGame(mode) {
   if(matchMedia('(pointer: coarse)').matches)$('touch-controls').classList.remove('hidden');
 
   $('rival-score').style.display=mode==='versus'?'':'none';$('player-label').textContent=mode==='versus'?'Sun Team':'Points';
+  $('rival-label').textContent='Rival Team';
 
   $('center-label').textContent=mode==='practice'?'Drill':'Time';$('countdown').style.display='flex';$('countdown-value').textContent='3';canvas.focus();
 
