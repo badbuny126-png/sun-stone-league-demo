@@ -83,8 +83,9 @@ aimRing.rotation.x = -Math.PI / 2;
 const aimArrow = new THREE.Mesh(new THREE.ConeGeometry(.16, .55, 8), new THREE.MeshBasicMaterial({ color: 0xffbc45 }));
 aimArrow.rotation.x = Math.PI / 2; aimArrow.position.z = .82; aimArrow.position.y = .08;
 aimGroup.add(aimRing, aimArrow); scene.add(aimGroup);
-const shotGuidePositions=new Float32Array(49*3),shotGuideGeometry=new THREE.BufferGeometry();
+const shotGuidePositions=new Float32Array(49*3),shotGuideDistances=new Float32Array(49),shotGuideGeometry=new THREE.BufferGeometry();
 shotGuideGeometry.setAttribute('position',new THREE.BufferAttribute(shotGuidePositions,3).setUsage(THREE.DynamicDrawUsage));
+shotGuideGeometry.setAttribute('lineDistance',new THREE.BufferAttribute(shotGuideDistances,1).setUsage(THREE.DynamicDrawUsage));
 const shotGuide=new THREE.Line(shotGuideGeometry,new THREE.LineDashedMaterial({color:0xffe3a0,transparent:true,opacity:.85,dashSize:.24,gapSize:.12,depthWrite:false}));
 shotGuide.frustumCulled=false;shotGuide.visible=false;scene.add(shotGuide);
 let guideTime=0;
@@ -367,9 +368,13 @@ function tick() {
   guideTime-=dt;
   if(showGuide && (!shotGuide.visible || guideTime<=0)) {
     const points=predictShot(ballState.pos,Input.mouseAimAngle,ringWorldPos);
-    points.forEach((point,i)=>point.toArray(shotGuidePositions,i*3));
+    let distance=0;
+    points.forEach((point,i)=>{
+      point.toArray(shotGuidePositions,i*3);
+      if(i)distance+=point.distanceTo(points[i-1]);shotGuideDistances[i]=distance;
+    });
     shotGuideGeometry.attributes.position.needsUpdate=true;shotGuideGeometry.setDrawRange(0,points.length);
-    shotGuide.computeLineDistances();guideTime=.1;
+    shotGuideGeometry.attributes.lineDistance.needsUpdate=true;guideTime=.1;
   }
   shotGuide.visible=showGuide;
   $('hint').textContent=ready
