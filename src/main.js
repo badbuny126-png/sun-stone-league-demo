@@ -413,7 +413,7 @@ function deflectBall(){if(canAct()){cancelCharge();queueAction(playerActor,{type
 
 function bump(){if(!playerActor||match.paused||match.phase!=='playing'||playerActor.bumpCooldown>0)return;cancelCharge();playerActor.bumpTime=.22;playerActor.bumpCooldown=1.8;playerActor.character.rotation.y=Input.mouseAimAngle;}
 
-setupInput(canvas,camera,()=>playerChar?.position,{begin:beginCharge,release:releaseCharge,cancel:cancelCharge,select:type=>{if(playerActor&&!playerActor.charging)playerActor.type=type;},pass:passBall,deflect:deflectBall,bump});
+setupInput(canvas,camera,()=>playerChar?.position,{begin:beginCharge,release:releaseCharge,cancel:cancelCharge,select:type=>{if(playerActor&&!playerActor.charging){playerActor.type=type;updateHUD();}},pass:passBall,deflect:deflectBall,bump});
 
 function finishGame(){
 

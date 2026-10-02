@@ -120,9 +120,9 @@ try {
           await page.locator('#countdown').waitFor({state:'hidden'});
           assert.equal(await page.locator('#center-label').textContent(),'Drill');
           await page.getByRole('button',{name:'2 Elbow',exact:true}).tap();
-          assert.equal(await page.getByRole('button',{name:'2 Elbow',exact:true}).getAttribute('aria-pressed'),'true');
+          await page.waitForFunction(()=>document.querySelector('[data-strike=elbow]').getAttribute('aria-pressed')==='true',null,{timeout:5000});
           await page.getByRole('button',{name:'3 Knee',exact:true}).tap();
-          assert.equal(await page.getByRole('button',{name:'3 Knee',exact:true}).getAttribute('aria-pressed'),'true');
+          await page.waitForFunction(()=>document.querySelector('[data-strike=knee]').getAttribute('aria-pressed')==='true',null,{timeout:5000});
           await page.evaluate(()=>window.__sunStoneTest.queueZoneShot());
           await page.waitForFunction(()=>window.__sunStoneTest.snapshot().phase==='ended');
           assert.equal(await page.locator('#end-title').textContent(),'FIRST POINT!');
