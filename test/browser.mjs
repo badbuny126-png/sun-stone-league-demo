@@ -42,8 +42,13 @@ try {
           await page.waitForTimeout(400);await page.mouse.up();
           const moved=(await page.evaluate(()=>window.__sunStoneTest.snapshot())).player;
           assert.ok(moved[2]>start[2]+.2,'joystick moves the player');
+          await page.evaluate(()=>window.__sunStoneTest.setupPlayerStrike(false));
           await page.getByRole('button',{name:'Strike the ball'}).tap();
           assert.equal(await page.locator('#callout').textContent(),'GET CLOSER','touch strike is handled');
+          await page.evaluate(()=>window.__sunStoneTest.setupPlayerStrike(true));
+          await page.getByRole('button',{name:'Strike the ball'}).tap();
+          await page.waitForFunction(()=>document.getElementById('callout').textContent==='KINETIC STRIKE!',null,{timeout:10000});
+          assert.ok((await page.evaluate(()=>window.__sunStoneTest.snapshot())).ballSpeed>4,'an in-range touch swing launches the ball at contact');
           await page.screenshot({path:'test-output/'+name+'-'+orientation+'-solo.png'});
           assert.deepEqual(errors,[],name+' solo runtime/shader errors');
 

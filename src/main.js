@@ -8,6 +8,7 @@ import { shotVelocity } from './shot.js';
 import { getAITarget, scoringTeam, shouldAIAttemptHit } from './teams.js';
 import { STRIKE_DURATION, STRIKE_CONTACT } from './motion.js';
 import { createEffects } from './effects.js';
+import { framePlay } from './framing.js';
 
 const $ = (id) => document.getElementById(id);
 function hasWebGL() {
@@ -40,6 +41,8 @@ addLighting(scene);
 const { ringMesh, ringWorldPos, arena, fallbackDecor } = createCourt(scene);
 const ballMesh = createBall(scene);
 const ballState = new BallState();
+const ballMarker=new THREE.Mesh(new THREE.RingGeometry(.46,.54,32),new THREE.MeshBasicMaterial({color:0xffdc91,transparent:true,opacity:.5,depthWrite:false}));
+ballMarker.rotation.x=-Math.PI/2;scene.add(ballMarker);
 
 const manager = new THREE.LoadingManager();
 manager.onProgress = (_url, loaded, total) => { $('loadbar').style.width = `${Math.round(loaded / total * 100)}%`; };
@@ -120,6 +123,7 @@ if (['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParam
     snapshot: () => ({
       mode, phase, paused, scorePlayer, scoreAI, lastTouch,
       player: playerChar?.position.toArray() ?? null,
+      ball:ballState.pos.toArray(),ballSpeed:ballState.vel.length(),playerSwingTimer,
       ai: aiFighters.map(({ id, enabled, character }) => ({ id, enabled, position: character.position.toArray() })),
     }),
     queueRingShot: (team) => {
@@ -128,6 +132,11 @@ if (['localhost', '127.0.0.1'].includes(location.hostname) && new URLSearchParam
       ballState.pos.set(ringWorldPos.x - 3, ringWorldPos.y, ringWorldPos.z);
       ballState.vel.set(20, 0, 0);
       lastTouch = team;
+    },
+    setupPlayerStrike: (inRange) => {
+      if(mode!=='solo'||phase!=='playing'||!playerChar)throw new Error('A solo round must be playing');
+      ballState.reset();ballState.pos.copy(playerChar.position).add(new THREE.Vector3(inRange?.8:0,.43,inRange?0:10));
+      playerHitCooldown=playerSwingTimer=0;playerPendingStrike=null;
     },
   });
 }
@@ -309,9 +318,8 @@ const desiredCamera = new THREE.Vector3(); const cameraTarget = new THREE.Vector
 const clock = new THREE.Clock(); let elapsed = 0;
 function updateCamera(dt) {
   if (!playerChar) return;
-  cameraTarget.copy(playerChar.position).lerp(ballState.pos,.28);cameraTarget.y=1.5;
-  const portrait=innerHeight>innerWidth;
-  desiredCamera.set(playerChar.position.x*.4,portrait?8.8:6.8,Math.min(COURT_LENGTH/2-1,playerChar.position.z+(portrait?12:10)));
+  const frame=framePlay(playerChar.position,ballState.pos,ringWorldPos,camera.aspect,camera.fov);
+  cameraTarget.lerp(frame.target,1-Math.exp(-5*dt));desiredCamera.copy(frame.position);
   if (shake > 0) { desiredCamera.x += (Math.random()-.5)*shake; desiredCamera.y += (Math.random()-.5)*shake; shake = Math.max(0, shake-dt*1.8); }
   camera.position.lerp(desiredCamera, 1 - Math.pow(.002, dt)); camera.lookAt(cameraTarget);
 }
@@ -341,6 +349,8 @@ function tick() {
     }
   }
   ballMesh.position.copy(ballState.pos); updateBallVisual(ballMesh, ballState.vel, dt);
+  ballMarker.position.set(ballState.pos.x,.04,ballState.pos.z);
+  ballMarker.scale.setScalar(1+Math.min(ballState.pos.y,8)*.035);
   updateCourt(arena, elapsed); updateParticles(dt); updateHUD();
   dustTime-=dt;
   if(playerChar && phase==='playing' && playerMoveSpeed>1 && dustTime<=0) {

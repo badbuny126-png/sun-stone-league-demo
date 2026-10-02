@@ -11,6 +11,7 @@ import { TEAM_ROSTER, getAITarget, scoringTeam, shouldAIAttemptHit } from '../sr
 import { alignArena, ARENA_LAYOUT } from '../src/arena-layout.js';
 import { RING_HEIGHT, COURT_WIDTH } from '../src/court.js';
 import { footCycle, strikePose, STRIKE_DURATION, STRIKE_CONTACT } from '../src/motion.js';
+import { framePlay } from '../src/framing.js';
 const ring=new THREE.Vector3(COURT_WIDTH/2-1.25,RING_HEIGHT,0);
 
 test('resting-ball ring shots score exactly once across frame rates',()=>{
@@ -124,4 +125,16 @@ test('foot swing clears the ground and strike pose anticipates contact then reco
   assert.ok(strikePose(STRIKE_DURATION*.8).windup>.8);
   assert.ok(strikePose(STRIKE_CONTACT).drive>.9);
   assert.deepEqual(strikePose(0),{windup:0,drive:0});
+});
+
+test('portrait and landscape camera framing includes player, airborne ball and goal',()=>{
+  for(const aspect of [390/844,844/390])for(const z of [-15,15]) {
+    const player=new THREE.Vector3(-6,0,z),ball=new THREE.Vector3(6,7,-z);
+    const frame=framePlay(player,ball,ring,aspect),camera=new THREE.PerspectiveCamera(52,aspect,.1,400);
+    camera.position.copy(frame.position);camera.lookAt(frame.target);camera.updateMatrixWorld(true);
+    for(const point of [player,player.clone().setY(2.3),ball,ring]) {
+      const projected=point.clone().project(camera);
+      assert.ok(Math.abs(projected.x)<1 && Math.abs(projected.y)<1,'subject is inside view');
+    }
+  }
 });
