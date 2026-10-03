@@ -1,6 +1,6 @@
 import { chromium, webkit } from 'playwright';
 import { spawn } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 await mkdir('test-output',{recursive:true});
 const server=spawn('node',['node_modules/vite/bin/vite.js','preview','--host','127.0.0.1'],{stdio:'inherit'});
@@ -20,21 +20,163 @@ try {
         const page=await context.newPage(),errors=[];
         page.on('pageerror',e=>{errors.push(e.message);console.error(e.message);});
         page.on('console',m=>{if(m.type()==='error'){errors.push(m.text());console.error(m.text());}});
-        await page.goto('http://127.0.0.1:4173');
-        await page.locator('#loading').waitFor({state:'hidden',timeout:30000});
-        await page.getByRole('button',{name:/Solo Challenge/}).click();
-        await page.locator('#countdown').waitFor({state:'hidden'});
-        await page.keyboard.down('w');await page.waitForTimeout(500);await page.keyboard.up('w');
-        await page.screenshot({path:'test-output/'+name+'-'+orientation+'.png'});
-        await page.getByRole('button',{name:'Pause game'}).click();
-        const before=await page.locator('#center-value').textContent();
-        await page.waitForTimeout(1200);
-        assert.equal(await page.locator('#center-value').textContent(),before,'timer freezes while paused');
-        await page.getByRole('button',{name:'Resume game'}).click();
-        await page.waitForFunction(value=>Number(document.getElementById('center-value').textContent)<Number(value),before,{timeout:10000});
-        assert.deepEqual(errors,[],name+' runtime/shader errors');
-        console.log(name+' '+orientation+': startup, movement, shaders and pause passed');
-        await context.close();
+        try {
+          await page.goto('http://127.0.0.1:4173/?e2e=1');
+          await page.locator('#loading').waitFor({state:'hidden',timeout:30000});
+          await page.locator('#difficulty').selectOption('hard');
+          await page.getByRole('button',{name:/Practice Drill/}).click();
+          assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).difficulty,'hard');
+          await page.locator('#countdown').waitFor({state:'hidden'});
+          assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).ai.filter(f=>f.enabled).length,0);
+          // Check real button geometry at small and large phone sizes, not just visibility.
+          if(orientation==='portrait')for(const size of [{width:320,height:568},{width:360,height:640},{width:390,height:844},{width:568,height:320},{width:667,height:280},{width:667,height:375},{width:844,height:390}]){
+            await page.setViewportSize(size);await page.waitForTimeout(150);
+            const selectors=['#joystick','#hit-btn','#pass-btn','#deflect-btn','#bump-btn','[data-strike=hip]','[data-strike=elbow]','[data-strike=knee]','#pause-btn'];
+            const boxes=await Promise.all(selectors.map(selector=>page.locator(selector).boundingBox()));
+            boxes.forEach((box,i)=>{
+              assert.ok(box&&box.width>=44&&box.height>=44,selectors[i]+' has a thumb-size target');
+              assert.ok(box.x>=8&&box.y>=8&&box.x+box.width<=size.width-8&&box.y+box.height<=size.height-8,selectors[i]+' stays inside the phone');
+              for(let j=0;j<i;j++){const other=boxes[j];assert.ok(box.x+box.width<=other.x||other.x+other.width<=box.x||box.y+box.height<=other.y||other.y+other.height<=box.y,selectors[i]+' does not overlap '+selectors[j]);}
+            });
+            assert.equal(await page.locator('#charge-meter').isVisible(),false,'charge ring replaces the separate phone meter');
+            await page.screenshot({path:`test-output/${name}-controls-${size.width}x${size.height}.png`});
+          }
+          await page.setViewportSize(viewport);
+          // Chromium sends real simultaneous touch pointers. WebKit also exercises pad dragging below.
+          if(name==='chromium'){
+            const session=await context.newCDPSession(page),stick=await page.locator('#joystick').boundingBox(),pad=await page.locator('#hit-btn').boundingBox();
+            const left={id:0,x:stick.x+stick.width/2,y:stick.y+stick.height/2},right={id:1,x:pad.x+pad.width/2,y:pad.y+pad.height/2};
+            const initial=(await page.evaluate(()=>window.__sunStoneTest.snapshot())).player;
+            await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[left,right]});
+            left.y+=24;right.y-=24;
+            await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[left,right]});
+            await page.waitForFunction(()=>window.__sunStoneTest.snapshot().charge>.25);
+            const state=await page.evaluate(()=>window.__sunStoneTest.snapshot());
+            assert.ok(state.player[2]>initial[2]+.1,'left thumb moves while right thumb charges');
+            assert.ok(Math.abs(Math.abs(state.aim)-Math.PI)<.01,'right thumb drag aims upward');
+            // The pinned Chromium WebTouch backend ends the listed contact IDs.
+            await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[right]});
+            await page.waitForFunction(()=>!window.__sunStoneTest.snapshot().charging);
+            assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).charging,false,'lifting right thumb releases independently');
+            await session.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});await session.detach();
+          }else{
+            const pad=await page.locator('#hit-btn').boundingBox();
+            await page.mouse.move(pad.x+pad.width/2,pad.y+pad.height/2);await page.mouse.down();
+            await page.mouse.move(pad.x+pad.width/2,pad.y+pad.height/2-24);
+            await page.waitForFunction(()=>window.__sunStoneTest.snapshot().charge>.15);
+            assert.ok(Math.abs(Math.abs((await page.evaluate(()=>window.__sunStoneTest.snapshot())).aim)-Math.PI)<.01);
+            await page.mouse.up();
+          }
+          await page.getByRole('button',{name:'Pause game'}).click();
+          await page.locator('#pause-menu-btn').click();
+          await page.getByRole('button',{name:/Solo Challenge/}).click();
+          await page.locator('#countdown').waitFor({state:'hidden'});
+          await page.getByRole('button',{name:'Pause game'}).click();
+          const before=await page.locator('#center-value').textContent();
+          await page.waitForTimeout(1200);
+          assert.equal(await page.locator('#center-value').textContent(),before,'timer freezes while paused');
+          await page.getByRole('button',{name:'Resume game'}).click();
+          await page.waitForFunction(value=>Number(document.getElementById('center-value').textContent)<Number(value),before,{timeout:10000});
+
+          const start=(await page.evaluate(()=>window.__sunStoneTest.snapshot())).player;
+          const stick=await page.locator('#joystick').boundingBox();
+          assert.ok(stick,'joystick is visible');
+          const x=stick.x+stick.width/2,y=stick.y+stick.height/2;
+          await page.mouse.move(x,y);await page.mouse.down();
+          await page.mouse.move(x,y+stick.height*.3,{steps:5});
+          await page.waitForTimeout(400);await page.mouse.up();
+          const moved=(await page.evaluate(()=>window.__sunStoneTest.snapshot())).player;
+          assert.ok(moved[2]>start[2]+.2,'joystick moves the player');
+          await page.waitForFunction(()=>{if(window.__sunStoneTest.snapshot().phase!=='playing')return false;window.__sunStoneTest.setupPlayerStrike(false);return true;},null,{timeout:10000});
+          await page.getByRole('button',{name:'Strike the ball'}).tap();
+          assert.equal(await page.locator('#callout').textContent(),'GET CLOSER','touch strike is handled');
+          await page.waitForFunction(()=>{if(window.__sunStoneTest.snapshot().phase!=='playing')return false;window.__sunStoneTest.setupPlayerStrike(true);return true;},null,{timeout:10000});
+          await page.waitForFunction(()=>window.__sunStoneTest.snapshot().shotGuideVisible,null,{timeout:5000});
+          assert.equal(await page.locator('#hit-btn').evaluate(button=>button.classList.contains('ready')),true,'strike button highlights in range');
+          await page.screenshot({path:'test-output/'+name+'-'+orientation+'-aim-guide.png'});
+          await page.getByRole('button',{name:'Pause game'}).click();
+          await page.waitForFunction(()=>!window.__sunStoneTest.snapshot().shotGuideVisible);
+          await page.getByRole('button',{name:'Resume game'}).click();
+          await page.waitForFunction(()=>{if(window.__sunStoneTest.snapshot().phase!=='playing')return false;window.__sunStoneTest.setupPlayerStrike(true);return true;},null,{timeout:10000});
+          const strike=await page.locator('#hit-btn').boundingBox();
+          await page.mouse.move(strike.x+strike.width/2,strike.y+strike.height/2);await page.mouse.down();
+          await page.waitForFunction(()=>window.__sunStoneTest.snapshot().charge>.25);
+          assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).charging,true);
+          await page.waitForTimeout(350);await page.mouse.up();
+          await page.waitForFunction(()=>window.__sunStoneTest.snapshot().kinetic>0,null,{timeout:10000});
+          assert.ok((await page.evaluate(()=>window.__sunStoneTest.snapshot())).ballSpeed>4,'an in-range touch swing launches the ball at contact');
+          await page.screenshot({path:'test-output/'+name+'-'+orientation+'-solo.png'});
+          assert.deepEqual(errors,[],name+' solo runtime/shader errors');
+
+          await page.waitForTimeout(800);
+          await page.waitForFunction(()=>window.__sunStoneTest.snapshot().phase==='playing',null,{timeout:10000});
+          await page.waitForFunction(()=>{if(window.__sunStoneTest.snapshot().phase!=='playing')return false;window.__sunStoneTest.setupPlayerStrike(true);return true;},null,{timeout:10000});
+          await page.locator('#game-canvas').focus();await page.keyboard.down('Space');
+          await page.waitForFunction(()=>window.__sunStoneTest.snapshot().charging);
+          await page.getByRole('button',{name:'Pause game'}).click();await page.keyboard.up('Space');
+          assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).charging,false,'pause cancels a held charge');
+          await page.locator('#pause-menu-btn').click();
+          assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).mode,null,'pause returns to mode selection');
+          assert.equal(await page.locator('#menu').isVisible(),true);
+          await page.locator('#difficulty').selectOption('easy');
+          await page.getByRole('button',{name:/2v2 Team Match/}).click();
+          await page.locator('#countdown').waitFor({state:'hidden'});
+          assert.equal(await page.locator('#player-label').textContent(),'Sun Team');
+          assert.equal(await page.locator('#rival-label').textContent(),'Rival Team');
+          assert.equal(await page.locator('#touch-controls').isVisible(),true,'touch controls stay available in 2v2');
+          const team=(await page.evaluate(()=>window.__sunStoneTest.snapshot())).ai;
+          assert.equal(team.filter(f=>f.enabled).length,3,'all three AI fighters are active');
+          await page.waitForFunction(initial=>{
+            const current=window.__sunStoneTest.snapshot().ai;
+            return current.some((fighter,i)=>Math.hypot(...fighter.position.map((v,j)=>v-initial[i].position[j]))>.1);
+          },team,{timeout:5000});
+          await page.screenshot({path:'test-output/'+name+'-'+orientation+'-team-playing.png'});
+          // AI movement is checked above; isolate scoring physics from autonomous goals.
+          await page.evaluate(()=>window.__sunStoneTest.prepareScoringFixture());
+          for (const [owner,sunScore,rivalScore] of [['sun',10,0],['rival',10,10],['sun',20,10]]) {
+            await page.evaluate(value=>window.__sunStoneTest.queueRingShot(value),owner);
+            await page.waitForFunction(([sun,rival])=>{
+              const state=window.__sunStoneTest.snapshot();
+              return state.scorePlayer===sun && state.scoreAI===rival;
+            },[sunScore,rivalScore],{timeout:5000});
+            await page.waitForFunction(final=>{
+              const phase=window.__sunStoneTest.snapshot().phase;
+              return phase===(final?'ended':'playing');
+            },sunScore===20,{timeout:5000});
+          }
+          assert.equal(await page.locator('#end-title').textContent(),'TIKAL VICTORY');
+          await page.screenshot({path:'test-output/'+name+'-'+orientation+'-team.png'});
+          assert.deepEqual(errors,[],name+' 2v2 runtime/shader errors');
+          await page.getByRole('button',{name:'Play Again'}).click();
+          const replay=await page.evaluate(()=>window.__sunStoneTest.snapshot());
+          assert.equal(replay.scorePlayer,0,'replay clears Sun score');
+          assert.equal(replay.scoreAI,0,'replay clears rival score');
+          assert.equal(replay.ai.filter(f=>f.enabled).length,3,'replay keeps the full roster');
+          await page.locator('#countdown').waitFor({state:'hidden'});
+          await page.evaluate(()=>{window.__sunStoneTest.prepareScoringFixture();window.__sunStoneTest.expireMatch();});
+          await page.waitForFunction(()=>window.__sunStoneTest.snapshot().suddenDeath);
+          await page.evaluate(()=>window.__sunStoneTest.queueRingShot('rival'));
+          await page.waitForFunction(()=>window.__sunStoneTest.snapshot().phase==='ended');
+          assert.equal(await page.locator('#end-title').textContent(),'RIVAL VICTORY');
+          await page.locator('#menu-btn').click();
+          await page.getByRole('button',{name:/Practice Drill/}).click();
+          await page.locator('#countdown').waitFor({state:'hidden'});
+          assert.equal(await page.locator('#center-label').textContent(),'Drill');
+          await page.getByRole('button',{name:'2 Elbow',exact:true}).tap();
+          await page.waitForFunction(()=>document.querySelector('[data-strike=elbow]').getAttribute('aria-pressed')==='true',null,{timeout:5000});
+          await page.getByRole('button',{name:'3 Knee',exact:true}).tap();
+          await page.waitForFunction(()=>document.querySelector('[data-strike=knee]').getAttribute('aria-pressed')==='true',null,{timeout:5000});
+          await page.evaluate(()=>window.__sunStoneTest.queueZoneShot());
+          await page.waitForFunction(()=>window.__sunStoneTest.snapshot().phase==='ended');
+          assert.equal(await page.locator('#end-title').textContent(),'FIRST POINT!');
+          assert.deepEqual(errors,[],name+' practice errors');
+          console.log(name+' '+orientation+': charge/release, pause cancellation, difficulty, AI, 10-point rings, win/replay, sudden death and practice passed');
+        } catch (error) {
+          console.error('Failure state:',await page.evaluate(()=>window.__sunStoneTest?.snapshot()).catch(()=>null));
+          await page.screenshot({path:'test-output/'+name+'-'+orientation+'-failure.png'}).catch(()=>{});
+          await writeFile('test-output/'+name+'-'+orientation+'-failure.txt',String(error)+'\n'+errors.join('\n'));
+          throw error;
+        } finally {await context.close();}
       }
     } finally {await browser.close();}
   }

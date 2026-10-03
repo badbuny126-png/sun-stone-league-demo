@@ -57,6 +57,15 @@ function createFloorTexture() {
   }
   let seed = 41;
   const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+  // Fine pores and worn edges break up the large flat floor without extra geometry.
+  for(let i=0;i<24000;i++) {
+    ctx.fillStyle=random()>.5?'rgba(245,224,183,.12)':'rgba(48,31,21,.10)';
+    ctx.fillRect(random()*canvas.width,random()*canvas.height,1+random()*2,1+random()*2);
+  }
+  ctx.strokeStyle='rgba(237,203,148,.3)';ctx.lineWidth=2;
+  for(let y=2;y<canvas.height;y+=128) {
+    ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();
+  }
   ctx.strokeStyle = 'rgba(74,40,22,.35)';
   ctx.lineWidth = 2;
   for (let i = 0; i < 46; i += 1) {
@@ -167,7 +176,8 @@ export function createCourt(scene) {
   group.add(fallbackDecor);
   const mats = [stoneMaterial(palette.sandstone), stoneMaterial(palette.lightStone), stoneMaterial(palette.darkStone)];
 
-  const floorMat = new THREE.MeshStandardMaterial({ map: createFloorTexture(), color: 0xffffff, roughness: .88, metalness: 0 });
+  const floorTexture=createFloorTexture(),relief=floorTexture.clone();relief.colorSpace=THREE.NoColorSpace;
+  const floorMat = new THREE.MeshStandardMaterial({ map: floorTexture, bumpMap:relief,bumpScale:.035, color: 0xffffff, roughness: .88, metalness: 0 });
   box(group, [COURT_WIDTH, .45, COURT_LENGTH], [0, -.23, 0], floorMat);
   addCourtMarkings(group);
   addSteppedSide(fallbackDecor, 1, mats);
@@ -250,9 +260,9 @@ export function updateCourt(arena, time) {
 }
 
 export function addLighting(scene) {
-  scene.add(new THREE.HemisphereLight(0xffefd5, 0x34434a, 1.35));
-  const sun = new THREE.DirectionalLight(0xffdfb0, 2.6);
-  sun.position.set(-18, 24, 14);
+  scene.add(new THREE.HemisphereLight(0xdcecff, 0x76563c, 1.65));
+  const sun = new THREE.DirectionalLight(0xffd4a2, 3.1);
+  sun.position.set(-18, 20, -14);
   sun.castShadow = true;
   sun.shadow.mapSize.set(1024, 1024);
   sun.shadow.camera.left = -18; sun.shadow.camera.right = 18;
@@ -261,6 +271,8 @@ export function addLighting(scene) {
   sun.shadow.bias = -.0003;
   sun.shadow.normalBias = .025;
   scene.add(sun);
-  const rim = new THREE.DirectionalLight(0x9fc8dc, .65);
-  rim.position.set(10, 8, -15); scene.add(rim);
+  const rim = new THREE.DirectionalLight(0x9fc8dc, 1.1);
+  rim.position.set(10, 8, 15); scene.add(rim);
+  const fill=new THREE.DirectionalLight(0xffe5cc,.8);
+  fill.position.set(0,10,25);scene.add(fill);
 }

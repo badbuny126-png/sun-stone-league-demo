@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { COURT_WIDTH, COURT_LENGTH, RING_RADIUS, RING_TUBE } from './court.js';
+import { createRNG } from './rng.js';
 
 export const BALL_RADIUS = .43;
 export const GRAVITY = -17;
@@ -64,7 +65,9 @@ export function updateBallVisual(ball, velocity, dt) {
 }
 
 export class BallState {
-  constructor() {
+  constructor(rng=createRNG(1)) {
+    this.rng=rng;
+    this.ringRadius=RING_RADIUS;this.ringTube=RING_TUBE;this.obstacles=[];
     this.pos = new THREE.Vector3();
     this.vel = new THREE.Vector3();
     this.heldCooldown = 0;
@@ -75,13 +78,15 @@ export class BallState {
 
   reset() {
     this.pos.set(0, BALL_RADIUS + .35, 0);
-    this.vel.set((Math.random() - .5) * 1.4, 1.6, (Math.random() - .5) * 1.4);
+    this.vel.set((this.rng() - .5) * 1.4, 1.6, (this.rng() - .5) * 1.4);
+    this.events=[];this.airborne=true;
     this.previousX = this.pos.x;
     this.justBounced = false;
     this.heldCooldown=0; this.pendingPass=0; this.scored=false;
   }
 
   update(dt,ring) {
+    this.events=[];
     if(this.scored)return false;
     const steps=Math.max(1,Math.ceil(dt/(1/120)));
     for(let i=0;i<steps;i++)if(this.step(dt/steps,ring))return true;
@@ -92,10 +97,13 @@ export class BallState {
     this.justBounced=false;
     this.pos.addScaledVector(this.vel,dt);
     this.pos.y+=.5*GRAVITY*dt*dt;this.vel.y+=GRAVITY*dt;
+    if(this.pos.y>BALL_RADIUS+.01)this.airborne=true;
     this.heldCooldown=Math.max(0,this.heldCooldown-dt);
     if(this.pos.y<BALL_RADIUS) {
       this.pos.y=BALL_RADIUS;
       if(this.vel.y<0) {
+        if(this.airborne && this.vel.y<-.25)this.events.push({kind:'floor'});
+        this.airborne=false;
         this.justBounced=this.vel.y < -2.2;
         this.vel.y=Math.abs(this.vel.y)>.8?-this.vel.y*RESTITUTION:0;
       }
@@ -106,33 +114,43 @@ export class BallState {
     // At the exact centre every point on the torus centreline is equally near.
     // Clamping the divisor would incorrectly create a solid obstacle in the hole.
     const closest=radius<1e-8
-      ? new THREE.Vector3(0,RING_RADIUS,0).add(ring)
-      : radial.multiplyScalar(RING_RADIUS/radius).add(ring);
+      ? new THREE.Vector3(0,this.ringRadius,0).add(ring)
+      : radial.multiplyScalar(this.ringRadius/radius).add(ring);
     const normal=this.pos.clone().sub(closest),separation=normal.length();
-    if(separation<BALL_RADIUS+RING_TUBE) {
+    if(separation<BALL_RADIUS+this.ringTube) {
       if(separation<1e-8)normal.set(Math.sign(previous.x-ring.x)||-1,0,0);
       else normal.multiplyScalar(1/separation);
-      this.pos.copy(closest).addScaledVector(normal,BALL_RADIUS+RING_TUBE+.001);
+      this.pos.copy(closest).addScaledVector(normal,BALL_RADIUS+this.ringTube+.001);
       const speed=this.vel.dot(normal);
-      if(speed<0)this.vel.addScaledVector(normal,-(1+RESTITUTION)*speed);
+      if(speed<0){this.vel.addScaledVector(normal,-(1+RESTITUTION)*speed);this.events.push({kind:'rim'});}
       this.pendingPass=0;
     } else {
       const dx=this.pos.x-previous.x;
       if(dx && (previous.x-ring.x)*(this.pos.x-ring.x)<=0) {
         const t=(ring.x-previous.x)/dx;
         const y=THREE.MathUtils.lerp(previous.y,this.pos.y,t),z=THREE.MathUtils.lerp(previous.z,this.pos.z,t);
-        if(Math.hypot(y-ring.y,z-ring.z)<RING_RADIUS-RING_TUBE-BALL_RADIUS)this.pendingPass=Math.sign(dx);
+        if(Math.hypot(y-ring.y,z-ring.z)<this.ringRadius-this.ringTube-BALL_RADIUS)this.pendingPass=Math.sign(dx);
       }
-      if(this.pendingPass && (this.pos.x-ring.x)*this.pendingPass>BALL_RADIUS+RING_TUBE) {
-        this.scored=true;return true;
+      if(this.pendingPass && (this.pos.x-ring.x)*this.pendingPass>BALL_RADIUS+this.ringTube) {
+        this.scored=true;this.events.push({kind:'ring'});return true;
       }
       if(this.pendingPass && this.vel.x*this.pendingPass<=0)this.pendingPass=0;
     }
     for(const [axis,half] of [['x',COURT_WIDTH/2-BALL_RADIUS],['z',COURT_LENGTH/2-BALL_RADIUS]]) {
+      if(axis==='z' && Math.abs(previous.z)<14.7 && Math.abs(this.pos.z)>=14.7)this.events.push({kind:'zone',end:this.pos.z>0?'rival':'sun'});
       if(Math.abs(this.pos[axis])>half) {
         this.pos[axis]=Math.sign(this.pos[axis])*half;this.vel[axis]*=-RESTITUTION;
         this.justBounced=true;this.pendingPass=0;
+        this.events.push({kind:'wall',surface:axis+Math.sign(this.pos[axis])});
       }
+    }
+    for(const obstacle of this.obstacles) {
+      if(this.pos.y>obstacle.height+BALL_RADIUS)continue;
+      const outward=new THREE.Vector3(this.pos.x-obstacle.x,0,this.pos.z-obstacle.z),distance=outward.length(),limit=obstacle.radius+BALL_RADIUS;
+      if(distance>=limit)continue;
+      if(distance<.0001)outward.set(1,0,0);else outward.divideScalar(distance);
+      this.pos.x=obstacle.x+outward.x*(limit+.001);this.pos.z=obstacle.z+outward.z*(limit+.001);
+      const incoming=this.vel.dot(outward);if(incoming<0){this.vel.addScaledVector(outward,-incoming*(1+RESTITUTION));this.events.push({kind:'wall',surface:'obstacle-'+obstacle.id});}
     }
     return false;
   }

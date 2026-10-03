@@ -25,10 +25,16 @@
       <div class="panel">
         <div class="eyebrow">A MYTHIC POK-TA-POK GAME</div>
         <h1>SUN-STONE<br>LEAGUE</h1>
-        <p>Enter the ancient court. Build kinetic energy and strike the sacred ball through the sun-stone ring.</p>
+        <p>Hold to charge. Release in the gold window. Attack the crimson end, protect the teal end, or risk a ten-point ring shot.</p>
+        <div class="menu-options">
+          <label>Difficulty<select id="difficulty"><option value="easy">Easy · forgiving</option><option value="normal" selected>Normal · balanced</option><option value="hard">Hard · manual aim</option></select></label>
+          <label>Outfit<select id="style-select"><option value="jade">Jade warrior</option><option id="amber-style" value="amber" disabled>Amber · win 3 matches</option></select></label>
+        </div>
+        <button class="mode-btn" data-mode="practice"><strong>Practice Drill</strong><span>Learn movement, release timing and your first point</span></button>
         <button class="mode-btn" data-mode="solo"><strong>Solo Challenge</strong><span>Score as many rings as you can in 60 seconds</span></button>
-        <button class="mode-btn" data-mode="versus"><strong>1v1 vs Rival</strong><span>First warrior to score 3 rings wins</span></button>
-        <div class="controls-copy">WASD / arrows to move · mouse to aim · Space to strike</div>
+        <button class="mode-btn" data-mode="versus"><strong>2v2 Team Match</strong><span>First to 20 · 3 minutes · tied timer: next ring wins</span></button>
+        <div id="profile-summary" class="profile-copy"></div>
+        <details class="rules-copy"><summary>Controls &amp; rules</summary><p class="phone-help">Left thumb: move. Right thumb: hold the strike pad, drag in your shot direction, then release in gold. Tap Hip / Elbow / Knee to switch strikes. Pass, Block and Dash are beside the strike pad. Landscape gives you a wider court view.</p><p class="keyboard-help">WASD / arrows: move. Mouse: aim. Hold Space, release in gold. 1 / 2 / 3: Hip / Elbow / Knee. Q: pass. E: deflect. Shift: shoulder charge.</p><p>Back zone 1 · two distinct wall surfaces then rim 3 · ring 10. One floor bounce allowed per legal contact; second gives the opponent 1. Feet or head contact gives a protected free strike. Legal body blocks can change possession. Pass chains build kinetic power.</p></details>
       </div>
     </div>
 
@@ -38,23 +44,32 @@
     <div id="hud" class="hidden">
       <div class="score-block"><div class="score-label" id="player-label">You</div><div class="score-value" id="score-player">0</div></div>
       <div id="timer-block"><div class="score-label" id="center-label">Time</div><div class="score-value" id="center-value">60</div></div>
-      <div class="score-block" id="rival-score"><div class="score-label">Rival</div><div class="score-value" id="score-ai">0</div></div>
+      <div class="score-block" id="rival-score"><div class="score-label" id="rival-label">Rival</div><div class="score-value" id="score-ai">0</div></div>
     </div>
 
     <div id="energy" class="hidden">
-      <div class="energy-label">BALL ENERGY <span id="energy-value">0%</span></div>
+      <div class="energy-label">TEAM KINETIC <span id="energy-value">0%</span></div>
       <div class="energy-track"><div id="energy-fill"></div></div>
     </div>
 
+    <div id="ball-status" aria-live="off"></div>
+    <div id="ring-warning" class="hidden">RING THREAT</div>
+    <div id="action-controls" class="hidden">
+      <div class="strike-types" role="group" aria-label="Strike type">
+        <button data-strike="hip" aria-label="1 Hip" aria-pressed="true"><span class="key-hint">1 </span>Hip</button><button data-strike="elbow" aria-label="2 Elbow" aria-pressed="false"><span class="key-hint">2 </span>Elbow</button><button data-strike="knee" aria-label="3 Knee" aria-pressed="false"><span class="key-hint">3 </span>Knee</button>
+      </div>
+      <div class="defense-actions"><button id="pass-btn" aria-label="Pass to teammate">Pass <small class="key-hint">Q</small></button><button id="deflect-btn" aria-label="Block the ball">Block <small class="key-hint">E</small></button><button id="bump-btn" aria-label="Shoulder dash">Dash <small class="key-hint">Shift</small></button></div>
+    </div>
+    <div id="charge-meter" class="hidden"><div id="charge-label">HIP SMASH · HOLD / RELEASE</div><div class="charge-track"><div id="charge-fill"></div><div id="release-window"></div></div></div>
     <div id="hint" class="hidden">Move close to the ball and strike toward the sun-stone ring</div>
 
     <div id="touch-controls" class="hidden">
-      <div id="joystick"><div id="joystick-knob"></div></div>
-      <button id="hit-btn" aria-label="Strike the ball">STRIKE</button>
+      <div id="joystick" role="group" aria-label="Movement joystick"><div id="joystick-knob"></div><span class="stick-label">MOVE</span></div>
+      <button id="hit-btn" aria-label="Strike the ball"><span id="touch-strike-name">HIP</span><strong>STRIKE</strong><small id="touch-strike-hint">HOLD · DRAG AIM</small></button>
     </div>
 
     <button id="pause-btn" class="hidden" aria-label="Pause game">Ⅱ</button>
-    <div id="pause-screen" class="overlay"><div class="panel compact"><h1>PAUSED</h1><p>Your match is waiting.</p><button id="resume-btn">Resume game</button></div></div>
+    <div id="pause-screen" class="overlay"><div class="panel compact"><h1>PAUSED</h1><p>Your match is waiting.</p><button id="resume-btn">Resume game</button><button id="pause-menu-btn" class="secondary">Choose Mode</button></div></div>
 
     <div id="endscreen" class="overlay">
       <div class="panel compact">

@@ -44,7 +44,83 @@ button{font:inherit;cursor:pointer}
 
 #hint{position:fixed;left:50%;bottom:max(60px,calc(env(safe-area-inset-bottom) + 44px));transform:translateX(-50%);z-index:12;color:var(--sand);font-size:11px;text-align:center;text-shadow:0 1px 4px #000;pointer-events:none;width:min(420px,55vw)}
 #pause-btn{position:fixed;right:max(16px,env(safe-area-inset-right));top:max(85px,calc(env(safe-area-inset-top) + 75px));z-index:25;width:44px;height:44px;border:1px solid var(--sun);border-radius:50%;color:var(--sand);background:#18120dd9}
-#pause-screen{z-index:40}#resume-btn{padding:14px 28px;border:1px solid var(--sun);background:var(--sun);border-radius:4px}
+#pause-screen{z-index:40}#resume-btn,#pause-menu-btn{padding:14px 28px;border:1px solid var(--sun);border-radius:4px}#resume-btn{background:var(--sun)}#pause-menu-btn{margin-top:10px;color:var(--sand);background:transparent}
 .overlay{overflow-y:auto;touch-action:pan-y}.panel{flex-shrink:0}
 @media(max-height:600px){#energy{bottom:max(8px,env(safe-area-inset-bottom))}#hint{bottom:max(54px,calc(env(safe-area-inset-bottom) + 45px));font-size:10px}}
 @media(max-width:500px){#hint{bottom:155px;width:85vw}#energy{bottom:max(12px,env(safe-area-inset-bottom));width:150px}}
+
+/* A subtle lens vignette leaves controls and text above it. */
+#app::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 43%, transparent 45%, rgba(30,15,10,.22) 100%); }
+#hit-btn.ready { border-color: #ffe6a1; box-shadow: 0 0 22px rgba(255,193,75,.55); color: #2a1607; }
+
+/* Match choices remain reachable in either phone orientation. */
+#menu{align-items:flex-start}.panel{margin:auto}.menu-options{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left}.menu-options label{font-size:11px;color:var(--sun-pale)}select{display:block;width:100%;margin-top:5px;padding:10px 5px;border:1px solid #735026;border-radius:3px;color:var(--sand);background:#1c130e;font:inherit;font-size:12px;touch-action:manipulation}.profile-copy{font-size:11px;color:var(--jade);margin-top:16px}.rules-copy{font-size:11px;text-align:left;margin-top:12px;touch-action:pan-y}.rules-copy summary{cursor:pointer;color:var(--sun-pale);padding:8px}.rules-copy p{margin:8px;line-height:1.6}
+#ball-status{position:fixed;top:max(78px,calc(env(safe-area-inset-top) + 70px));left:50%;transform:translateX(-50%);font-size:10px;color:var(--sand);text-shadow:0 2px 5px #000;z-index:12;pointer-events:none;white-space:nowrap}#ring-warning{position:fixed;top:120px;left:50%;transform:translateX(-50%);padding:6px 12px;border:1px solid var(--sun);background:#30160ee6;color:var(--sun-pale);z-index:13;font-size:11px;font-weight:bold;pointer-events:none}
+#action-controls{position:fixed;top:max(100px,calc(env(safe-area-inset-top) + 92px));left:max(12px,env(safe-area-inset-left));z-index:16;display:flex;flex-direction:column;gap:7px}#action-controls button{min-height:44px;min-width:48px;border:1px solid #876339;border-radius:4px;color:var(--sand);background:#18120de6;font-size:11px;padding:6px 10px;touch-action:none}#action-controls button[aria-pressed=true]{border-color:var(--sun);color:#231307;background:var(--sun)}#action-controls button:disabled{opacity:.45}.strike-types,.defense-actions{display:flex;gap:5px}.defense-actions small{display:block;font-size:9px;opacity:.7}
+#charge-meter{position:fixed;bottom:max(81px,calc(env(safe-area-inset-bottom) + 69px));left:50%;transform:translateX(-50%);width:min(270px,38vw);z-index:12;pointer-events:none;background:#160e09dc;padding:8px;color:var(--sun-pale)}#charge-label{font-size:9px;text-align:center;margin-bottom:5px}.charge-track{height:12px;position:relative;border:1px solid #735026;background:#170e09}#charge-fill{height:100%;width:0;background:var(--jade)}#charge-fill.perfect{background:#ffe28b;box-shadow:0 0 14px #ffd470}#release-window{position:absolute;top:-3px;bottom:-3px;border:2px solid #ffd470;background:#ffcb6633}#hint{bottom:max(119px,calc(env(safe-area-inset-bottom) + 108px));width:min(430px,70vw)}
+@media(max-width:500px){#charge-meter{width:160px;bottom:76px}#action-controls{top:108px}#ball-status{font-size:9px}#ring-warning{top:235px}#hint{bottom:153px;font-size:10px}}
+@media(max-height:600px){#action-controls{top:94px;flex-direction:row}#action-controls button{padding:5px 8px}#charge-meter{bottom:59px;width:230px}#hint{bottom:103px;font-size:10px;width:65vw}#ring-warning{top:149px}.panel{max-width:600px}.panel h1{font-size:36px;margin-bottom:8px}.panel p{font-size:12px}.profile-copy{margin-top:8px}}
+
+#hud.hidden ~ #ball-status{display:none}
+@media(max-width:500px) and (min-height:601px){#joystick{left:max(18px,env(safe-area-inset-left));width:96px;height:96px}#joystick-knob{width:36px;height:36px;left:28px;top:28px}#hit-btn{right:max(18px,env(safe-area-inset-right));bottom:max(28px,env(safe-area-inset-bottom));width:88px;height:88px}}
+
+/* Phone controls occupy two thumb zones; the centre of the court stays open. */
+html,body,#app{height:100dvh}
+button,#joystick{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.phone-help,.stick-label{display:none}
+#hit-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+#hit-btn small{font-size:8px;letter-spacing:0}
+#touch-strike-name{font-size:10px;letter-spacing:1px}
+.touch-layout .phone-help,.touch-layout .stick-label{display:block}
+.touch-layout .keyboard-help,.touch-layout .key-hint,.touch-layout #charge-meter{display:none}
+.touch-layout #touch-controls:not(.hidden){display:block!important}
+.touch-layout #hud{padding-top:calc(env(safe-area-inset-top) + 10px);padding-left:calc(env(safe-area-inset-left) + 12px);padding-right:calc(env(safe-area-inset-right) + 70px);gap:6px}
+.touch-layout .score-block,.touch-layout #timer-block{min-width:0;width:100%;padding:6px 8px}
+.touch-layout .score-label{font-size:8px;letter-spacing:.7px}
+.touch-layout .score-value{font-size:24px}
+.touch-layout #timer-block{width:76px}
+.touch-layout #pause-btn{top:calc(env(safe-area-inset-top) + 10px);right:calc(env(safe-area-inset-right) + 12px);width:48px;height:48px}
+.touch-layout #energy{top:calc(env(safe-area-inset-top) + 66px);bottom:auto;width:200px;padding:5px 8px;clip-path:none;border-radius:6px}
+.touch-layout .energy-label{font-size:9px;margin-bottom:3px;letter-spacing:.8px}
+.touch-layout .energy-track{height:5px}
+.touch-layout #ball-status{top:calc(env(safe-area-inset-top) + 101px);font-size:11px;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+.touch-layout #hint{top:calc(env(safe-area-inset-top) + 124px);bottom:auto;width:min(360px,90vw);font-size:11px}
+.touch-layout #hint:not(.practice-hint){display:none}
+.touch-layout #ring-warning{top:calc(env(safe-area-inset-top) + 153px);font-size:12px}
+.touch-layout #action-controls{top:auto;bottom:calc(env(safe-area-inset-bottom) + 148px);left:auto;right:calc(env(safe-area-inset-right) + 16px);flex-direction:column;gap:12px}
+.touch-layout #action-controls button{width:56px;min-width:56px;height:48px;padding:4px;font-size:12px;font-weight:800;border-radius:12px}
+.touch-layout .strike-types,.touch-layout .defense-actions{gap:6px}
+.touch-layout .strike-types{position:absolute;bottom:60px;right:0}
+.touch-layout #joystick{width:112px;height:112px;left:calc(env(safe-area-inset-left) + 18px);bottom:calc(env(safe-area-inset-bottom) + 20px)}
+.touch-layout #joystick-knob{width:42px;height:42px;left:33px;top:33px}
+.touch-layout .stick-label{position:absolute;bottom:12px;width:100%;text-align:center;color:var(--sand);font-size:9px;letter-spacing:1.5px;pointer-events:none}
+.touch-layout #hit-btn{width:108px;height:108px;right:calc(env(safe-area-inset-right) + 24px);bottom:calc(env(safe-area-inset-bottom) + 24px);border:0;overflow:visible;font-size:16px;touch-action:none;--charge-angle:0deg;--window-start:188deg;--window-end:244deg}
+.touch-layout #hit-btn::before,.touch-layout #hit-btn::after{content:'';position:absolute;inset:-7px;border-radius:50%;pointer-events:none;-webkit-mask:radial-gradient(transparent 62%,#000 64%);mask:radial-gradient(transparent 62%,#000 64%)}
+.touch-layout #hit-btn::before{background:conic-gradient(var(--jade) 0deg var(--charge-angle),#443021 var(--charge-angle) 360deg)}
+.touch-layout #hit-btn::after{background:conic-gradient(transparent 0deg var(--window-start),#ffe18b var(--window-start) var(--window-end),transparent var(--window-end) 360deg);opacity:.8}
+.touch-layout #hit-btn.perfect::before{background:#ffe18b;filter:drop-shadow(0 0 8px #ffb63e)}
+.touch-layout #hit-btn small{font-size:9px;font-weight:bold}
+.touch-layout #hit-btn.perfect small{color:#4c2205}
+@media(max-height:500px){.touch-layout #hud{max-width:540px;left:50%;transform:translateX(-50%);padding-right:12px}.touch-layout #hint{top:calc(env(safe-area-inset-top) + 124px);font-size:10px;width:48vw}.touch-layout #ring-warning{top:calc(env(safe-area-inset-top) + 148px)}}
+@media(max-height:360px) and (orientation:landscape){
+  .touch-layout #hud{max-width:360px}
+  .touch-layout .score-block,.touch-layout #timer-block{padding:4px 6px}
+  .touch-layout .score-value{font-size:20px}
+  .touch-layout #energy{top:calc(env(safe-area-inset-top) + 54px);width:168px}
+  .touch-layout #ball-status{top:calc(env(safe-area-inset-top) + 85px);max-width:30vw;font-size:10px}
+  .touch-layout #hint{top:calc(env(safe-area-inset-top) + 108px);width:36vw;font-size:10px}
+  .touch-layout #ring-warning{top:calc(env(safe-area-inset-top) + 135px)}
+  .touch-layout #action-controls{bottom:calc(env(safe-area-inset-bottom) + 116px)}
+  .touch-layout #action-controls button{height:44px}
+  .touch-layout .strike-types{bottom:56px}
+  .touch-layout #joystick{width:96px;height:96px;bottom:calc(env(safe-area-inset-bottom) + 16px)}
+  .touch-layout #joystick-knob{width:36px;height:36px;left:28px;top:28px}
+  .touch-layout #hit-btn{width:92px;height:92px;bottom:calc(env(safe-area-inset-bottom) + 16px);font-size:14px}
+  .touch-layout #hit-btn small{font-size:8px}
+}
+@media(max-height:650px) and (orientation:portrait){
+  .touch-layout #action-controls{left:0;right:0;height:48px;display:block;pointer-events:none}
+  .touch-layout #action-controls button{width:44px;min-width:44px;height:48px;font-size:11px;pointer-events:auto}
+  .touch-layout .strike-types{right:12px;bottom:0;gap:4px}
+  .touch-layout .defense-actions{position:absolute;left:12px;bottom:0;gap:4px}
+}
