@@ -118,3 +118,9 @@ button,#joystick{-webkit-user-select:none;user-select:none;-webkit-touch-callout
   .touch-layout #hit-btn{width:92px;height:92px;bottom:calc(env(safe-area-inset-bottom) + 16px);font-size:14px}
   .touch-layout #hit-btn small{font-size:8px}
 }
+@media(max-height:650px) and (orientation:portrait){
+  .touch-layout #action-controls{left:0;right:0;height:48px;display:block;pointer-events:none}
+  .touch-layout #action-controls button{width:44px;min-width:44px;height:48px;font-size:11px;pointer-events:auto}
+  .touch-layout .strike-types{right:12px;bottom:0;gap:4px}
+  .touch-layout .defense-actions{position:absolute;left:12px;bottom:0;gap:4px}
+}
