@@ -31,20 +31,22 @@ import { framePlay } from './framing.js';
 
 
 const $ = (id) => document.getElementById(id);
+const viewSize=()=>{const {width,height}=$('app').getBoundingClientRect();return {width:Math.max(1,width),height:Math.max(1,height)};};
 
 const touchLayout=()=>matchMedia('(pointer: coarse)').matches||innerWidth<600;
 let safePlayFrame={top:.10,bottom:.13};
 function measurePlayFrame(){
   if(!touchLayout()){safePlayFrame={top:.10,bottom:.13};return;}
+  const {width,height}=viewSize();
   const status=$('ball-status').getBoundingClientRect(),hint=$('hint').getBoundingClientRect();
-  const top=(Math.max(status.bottom,hint.height?hint.bottom:0)+12)/innerHeight;
+  const top=(Math.max(status.bottom,hint.height?hint.bottom:0)+12)/height;
   const actions=$('action-controls').getBoundingClientRect(),types=document.querySelector('.strike-types').getBoundingClientRect();
   const stick=$('joystick').getBoundingClientRect();
-  safePlayFrame=innerWidth>innerHeight?{top,left:(stick.right+12)/innerWidth,right:(innerWidth-actions.left+12)/innerWidth,bottom:.06}
-    :{top,bottom:(innerHeight-types.top+12)/innerHeight};
+  safePlayFrame=width>height?{top,left:(stick.right+12)/width,right:(width-actions.left+12)/width,bottom:.06}
+    :{top,bottom:(height-types.top+12)/height};
 }
 const syncLayout=()=>{document.documentElement.classList.toggle('touch-layout',touchLayout());requestAnimationFrame(measurePlayFrame);};
-syncLayout();addEventListener('resize',syncLayout);
+syncLayout();
 
 const match=new Match(new URLSearchParams(location.search).has('e2e')?17:Date.now());
 
@@ -72,7 +74,7 @@ const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPrefere
 
 renderer.setPixelRatio(Math.min(devicePixelRatio, innerWidth < 900 ? 1.35 : 1.8));
 
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(viewSize().width, viewSize().height, false);
 
 renderer.shadowMap.enabled = true;
 
@@ -90,21 +92,22 @@ const scene = new THREE.Scene();
 
 scene.fog = new THREE.FogExp2(0xc49a7a, .009);
 
-const camera = new THREE.PerspectiveCamera(52, innerWidth / innerHeight, .1, 400);
+const camera = new THREE.PerspectiveCamera(52, viewSize().width / viewSize().height, .1, 400);
 
 camera.position.set(0, 4.5, 8);
 
-addEventListener('resize', () => {
+function resizeViewport() {
 
-  camera.aspect = innerWidth / innerHeight;
+  const {width,height}=viewSize();camera.aspect = width / height;
 
   camera.updateProjectionMatrix();
 
   renderer.setPixelRatio(Math.min(devicePixelRatio,matchMedia('(pointer: coarse)').matches?1.35:1.8));
 
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(width, height, false);syncLayout();
 
-});
+}
+addEventListener('resize',resizeViewport);window.visualViewport?.addEventListener('resize',resizeViewport);
 
 
 
@@ -357,6 +360,7 @@ function startGame(mode) {
 
   $('hint').classList.toggle('practice-hint',mode==='practice');requestAnimationFrame(measurePlayFrame);
   $('center-label').textContent=mode==='practice'?'Drill':'Time';$('countdown').style.display='flex';$('countdown-value').textContent='3';canvas.focus();
+  updateHUD();
 
 }
 
