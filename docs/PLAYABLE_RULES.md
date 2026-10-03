@@ -23,6 +23,8 @@ Hold Space, the court mouse button, or STRIKE; release when the charge reaches t
 
 WASD/arrows or joystick move. Mouse or tap the court aims. Q/Pass targets an advanced teammate; E/Deflect redirects nearby balls; Shift/Bump bursts forward with collision and a cooldown. Get behind the ball and face your target. Swing contact is checked again after anticipation, so a ball that moves away is missed.
 
+On iPhone, keep your left thumb on MOVE. Hold the right strike pad and drag in the shot direction; lift that thumb to strike. A gold arc marks the release window and the ring fills as you charge. Both thumbs work simultaneously. Hip/Elbow/Knee and Pass/Block/Dash sit above the right pad. Scores and kinetic are above the court; controls respect safe areas in both orientations. Landscape provides a wider view. The camera fits all active fighters inside the area clear of the controls. Passive ball contact requires overlap with a finite body capsule, so an overhead ball does not foul a player on the ground.
+
 Easy/Normal/Hard vary AI reaction delay, speed, aim error and aggression. Aim assist is a small angle bias (45%/14%/0% within 20 degrees); it never solves a guaranteed ring trajectory.
 
 Completed teammate contacts build pass chains and kinetic. Heavy strikes use up to 20 kinetic scaled by timing; new contacts also replenish it. Defensive blocks do not spend it.

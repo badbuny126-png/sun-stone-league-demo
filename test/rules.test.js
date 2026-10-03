@@ -4,12 +4,33 @@ import * as THREE from 'three';
 import { Match } from '../src/match.js';
 import { createRNG } from '../src/rng.js';
 import { BallState } from '../src/ball.js';
-import { STRIKES, DIFFICULTIES, chargeQuality, strikeVelocity, strikeContact, chooseContest, resolvePlayerCollisions } from '../src/strike.js';
+import { STRIKES, DIFFICULTIES, chargeQuality, strikeVelocity, strikeContact, passiveBodyContact, chooseContest, resolvePlayerCollisions } from '../src/strike.js';
+import { framePlay } from '../src/framing.js';
 import { decideAI } from '../src/ai.js';
 import { readProfile, saveProfile } from '../src/profile.js';
 const ring=new THREE.Vector3(5.75,4.8,0);
 const actor=(id,team,z=0)=>({id,team,position:new THREE.Vector3(0,0,z),velocity:new THREE.Vector3(),cooldown:0,swingTimer:0,role:'striker'});
 function playing(mode='versus'){const m=new Match(42);m.start(mode);m.phase='playing';return m;}
+
+test('passive contact requires finite body overlap; overhead and distant balls cannot foul',()=>{
+  const a=actor('p','sun');
+  for(const y of [2.5,4,8])assert.equal(passiveBodyContact(a,{pos:new THREE.Vector3(0,y,0)}),false);
+  for(const y of [.43,.95,1.95])assert.equal(passiveBodyContact(a,{pos:new THREE.Vector3(.2,y,0)}),true);
+  assert.equal(passiveBodyContact(a,{pos:new THREE.Vector3(1,.95,0)}),false);
+});
+test('phone framing keeps the full team inside the court region clear of controls',()=>{
+  const fighters=[new THREE.Vector3(-5,0,-14),new THREE.Vector3(5,0,14),new THREE.Vector3(3,0,-3)];
+  const player=new THREE.Vector3(-2,0,5),ball=new THREE.Vector3(4,6,2);
+  for(const [aspect,safe] of [[390/844,{top:.2,bottom:.34}],[844/390,{top:.32,left:.17,right:.25,bottom:.06}]]){
+    const frame=framePlay(player,ball,ring,aspect,52,fighters,safe),camera=new THREE.PerspectiveCamera(52,aspect,.1,400);
+    camera.position.copy(frame.position);camera.lookAt(frame.target);camera.updateMatrixWorld(true);
+    for(const point of [player,ball,ring,...fighters,...fighters.map(p=>p.clone().setY(2.3))]){
+      const p=point.clone().project(camera);
+      assert.ok(p.x>=-1+2*(safe.left||0)&&p.x<=1-2*(safe.right||0));
+      assert.ok(p.y>=-1+2*(safe.bottom||0)&&p.y<=1-2*(safe.top||0));
+    }
+  }
+});
 
 test('charge rewards timing; strike types change trajectory and hard removes aim assist',()=>{
   const pos=new THREE.Vector3(0,.8,0),zero=new THREE.Vector3();

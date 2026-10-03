@@ -14,7 +14,7 @@ import { predictShot } from './shot.js';
 
 import { Match, opposite } from './match.js';
 
-import { STRIKES, DIFFICULTIES, chargeQuality, strikeContact, strikeVelocity, chooseContest, resolvePlayerCollisions } from './strike.js';
+import { STRIKES, DIFFICULTIES, chargeQuality, strikeContact, passiveBodyContact, strikeVelocity, chooseContest, resolvePlayerCollisions } from './strike.js';
 
 import { decideAI } from './ai.js';
 
@@ -31,6 +31,20 @@ import { framePlay } from './framing.js';
 
 
 const $ = (id) => document.getElementById(id);
+
+const touchLayout=()=>matchMedia('(pointer: coarse)').matches||innerWidth<600;
+let safePlayFrame={top:.10,bottom:.13};
+function measurePlayFrame(){
+  if(!touchLayout()){safePlayFrame={top:.10,bottom:.13};return;}
+  const status=$('ball-status').getBoundingClientRect(),hint=$('hint').getBoundingClientRect();
+  const top=(Math.max(status.bottom,hint.height?hint.bottom:0)+12)/innerHeight;
+  const actions=$('action-controls').getBoundingClientRect(),types=document.querySelector('.strike-types').getBoundingClientRect();
+  const stick=$('joystick').getBoundingClientRect();
+  safePlayFrame=innerWidth>innerHeight?{top,left:(stick.right+12)/innerWidth,right:(innerWidth-actions.left+12)/innerWidth,bottom:.06}
+    :{top,bottom:(innerHeight-types.top+12)/innerHeight};
+}
+const syncLayout=()=>{document.documentElement.classList.toggle('touch-layout',touchLayout());requestAnimationFrame(measurePlayFrame);};
+syncLayout();addEventListener('resize',syncLayout);
 
 const match=new Match(new URLSearchParams(location.search).has('e2e')?17:Date.now());
 
@@ -336,11 +350,12 @@ function startGame(mode) {
 
   for(const id of ['hud','energy','hint','action-controls','charge-meter','pause-btn'])$(id).classList.remove('hidden');
 
-  if(matchMedia('(pointer: coarse)').matches)$('touch-controls').classList.remove('hidden');
+  $('touch-controls').classList.remove('hidden');
 
   $('rival-score').style.display=mode==='versus'?'':'none';$('player-label').textContent=mode==='versus'?'Sun Team':'Points';
   $('rival-label').textContent='Rival Team';
 
+  $('hint').classList.toggle('practice-hint',mode==='practice');requestAnimationFrame(measurePlayFrame);
   $('center-label').textContent=mode==='practice'?'Drill':'Time';$('countdown').style.display='flex';$('countdown-value').textContent='3';canvas.focus();
 
 }
@@ -549,7 +564,7 @@ function updateActors(dt,wallDt){
 
   if(ballState.heldCooldown<=0 && ballState.vel.length()>2){
 
-    const touching=actors.filter(actor=>actor.bodyCooldown<=0&&actor.position.clone().setY(ballState.pos.y).distanceTo(ballState.pos)<.68).sort((a,b)=>a.position.distanceTo(ballState.pos)-b.position.distanceTo(ballState.pos));
+    const touching=actors.filter(actor=>actor.bodyCooldown<=0&&passiveBodyContact(actor,ballState)).sort((a,b)=>a.position.distanceTo(ballState.pos)-b.position.distanceTo(ballState.pos));
 
     const actor=touching[0];
 
@@ -600,6 +615,13 @@ function updateHUD(){
   $('release-window').style.width=`${STRIKES[type].ideal*.255/STRIKES[type].max*100}%`;
 
   $('charge-label').textContent=playerActor?.charging?(quality>.85?'RELEASE NOW':charge>1?'OVERCHARGED':`CHARGING ${STRIKES[type].name.toUpperCase()}`):`${STRIKES[type].name.toUpperCase()} · HOLD / RELEASE`;
+
+  const hit=$('hit-btn');hit.style.setProperty('--charge-angle',`${Math.min(1,charge)*360}deg`);
+  hit.style.setProperty('--window-start',`${STRIKES[type].ideal*.8725/STRIKES[type].max*360}deg`);
+  hit.style.setProperty('--window-end',`${STRIKES[type].ideal*1.1275/STRIKES[type].max*360}deg`);
+  hit.classList.toggle('perfect',Boolean(playerActor?.charging&&quality>.85));
+  $('touch-strike-name').textContent=type.toUpperCase();
+  $('touch-strike-hint').textContent=playerActor?.charging?(quality>.85?'RELEASE NOW':charge>1?'TOO LONG':'DRAG TO AIM'):'HOLD · DRAG AIM';
 
   for(const button of document.querySelectorAll('[data-strike]'))button.setAttribute('aria-pressed',String(button.dataset.strike===type));
 
@@ -685,7 +707,8 @@ function tick(){
 
     for(const actor of match.actors){if(actor!==playerActor&&!actor.enabled)continue;animateCharacter(actor.rig,match.phase==='playing'?actor.moveSpeed||0:0,actor.swingTimer,dt,visual.elapsed,actor.animationType||actor.type,actor.charging?Math.min(1,actor.charge/STRIKES[actor.type].ideal):0);}
 
-    const frame=framePlay(playerActor.position,ballState.pos,ringWorldPos,camera.aspect,camera.fov),target=frame.target;
+    const fighters=match.actors.filter(actor=>actor!==playerActor&&actor.enabled).map(actor=>actor.position);
+    const frame=framePlay(playerActor.position,ballState.pos,ringWorldPos,camera.aspect,camera.fov,fighters,safePlayFrame),target=frame.target;
 
     if(visual.shake>0&&dt>0){frame.position.x+=(cosmeticRng()-.5)*visual.shake;frame.position.y+=(cosmeticRng()-.5)*visual.shake;visual.shake=Math.max(0,visual.shake-dt*2);}
 
@@ -699,9 +722,9 @@ function tick(){
 
 if(['localhost','127.0.0.1'].includes(location.hostname)&&new URLSearchParams(location.search).has('e2e'))window.__sunStoneTest=Object.freeze({
 
-  snapshot:()=>({mode:match.mode,phase:match.phase,paused:match.paused,scorePlayer:match.scores.sun,scoreAI:match.scores.rival,lastTouch:match.lastTouch,difficulty:match.difficulty,suddenDeath:match.suddenDeath,charging:playerActor?.charging,charge:playerActor?.charge,kinetic:match.kinetic.sun,player:playerActor?.position.toArray(),ball:ballState.pos.toArray(),ballSpeed:ballState.vel.length(),shotGuideVisible:shotGuide.visible,ai:aiFighters.map(a=>({id:a.id,enabled:a.enabled,position:a.position.toArray(),state:a.aiState}))}),
+  snapshot:()=>({mode:match.mode,phase:match.phase,paused:match.paused,scorePlayer:match.scores.sun,scoreAI:match.scores.rival,lastTouch:match.lastTouch,difficulty:match.difficulty,suddenDeath:match.suddenDeath,charging:playerActor?.charging,charge:playerActor?.charge,aim:Input.mouseAimAngle,kinetic:match.kinetic.sun,player:playerActor?.position.toArray(),ball:ballState.pos.toArray(),ballSpeed:ballState.vel.length(),shotGuideVisible:shotGuide.visible,ai:aiFighters.map(a=>({id:a.id,enabled:a.enabled,position:a.position.toArray(),state:a.aiState}))}),
 
-  setupPlayerStrike:inRange=>{if(match.mode!=='solo'||match.phase!=='playing')throw Error('Solo must be playing');match.clearRally();ballState.reset();ballState.pos.copy(playerActor.position).add(new THREE.Vector3(0,.8,inRange?.9:10));if(!inRange)ballState.pos.z=playerActor.position.z>0?-12:12;ballState.vel.set(0,0,0);ballState.heldCooldown=0;playerActor.cooldown=playerActor.swingTimer=0;playerActor.pendingStrike=null;},
+  setupPlayerStrike:inRange=>{if(match.mode!=='solo'||match.phase!=='playing')throw Error('Solo must be playing');match.clearRally();ballState.reset();const reach=inRange?.9:10;ballState.pos.copy(playerActor.position).add(new THREE.Vector3(Math.sin(Input.mouseAimAngle)*reach,.8,Math.cos(Input.mouseAimAngle)*reach));if(!inRange)ballState.pos.z=playerActor.position.z>0?-12:12;ballState.vel.set(0,0,0);ballState.heldCooldown=0;playerActor.cooldown=playerActor.swingTimer=0;playerActor.pendingStrike=null;},
 
   prepareScoringFixture:()=>{if(match.mode!=='versus')throw Error('Versus must be started');match.phase='playing';match.scores={sun:0,rival:0};resetPositions();setAIVisibility(false);},
   queueRingShot:team=>{if(match.mode!=='versus'||match.phase!=='playing')throw Error('Versus must be playing');match.clearRally();match.lastTouch=team;match.lastStriker=team==='sun'?'player':'rival-striker';match.rallyArmed=true;ballState.reset();ballState.pos.set(ringWorldPos.x-3,ringWorldPos.y,ringWorldPos.z);ballState.vel.set(20,0,0);for(const a of aiFighters)a.cooldown=3;},

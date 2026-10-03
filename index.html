@@ -34,7 +34,7 @@
         <button class="mode-btn" data-mode="solo"><strong>Solo Challenge</strong><span>Score as many rings as you can in 60 seconds</span></button>
         <button class="mode-btn" data-mode="versus"><strong>2v2 Team Match</strong><span>First to 20 · 3 minutes · tied timer: next ring wins</span></button>
         <div id="profile-summary" class="profile-copy"></div>
-        <details class="rules-copy"><summary>Controls &amp; rules</summary><p>WASD / arrows: move. Mouse or tap court: aim. Hold Space / STRIKE, release in gold. 1 / 2 / 3: Hip / Elbow / Knee. Q: pass. E: deflect. Shift: shoulder charge.</p><p>Back zone 1 · two distinct wall surfaces then rim 3 · ring 10. One floor bounce allowed per legal contact; second gives the opponent 1. Feet or head contact gives a protected free strike. Legal body blocks can change possession. Pass chains build kinetic power.</p></details>
+        <details class="rules-copy"><summary>Controls &amp; rules</summary><p class="phone-help">Left thumb: move. Right thumb: hold the strike pad, drag in your shot direction, then release in gold. Tap Hip / Elbow / Knee to switch strikes. Pass, Block and Dash are beside the strike pad. Landscape gives you a wider court view.</p><p class="keyboard-help">WASD / arrows: move. Mouse: aim. Hold Space, release in gold. 1 / 2 / 3: Hip / Elbow / Knee. Q: pass. E: deflect. Shift: shoulder charge.</p><p>Back zone 1 · two distinct wall surfaces then rim 3 · ring 10. One floor bounce allowed per legal contact; second gives the opponent 1. Feet or head contact gives a protected free strike. Legal body blocks can change possession. Pass chains build kinetic power.</p></details>
       </div>
     </div>
 
@@ -56,16 +56,16 @@
     <div id="ring-warning" class="hidden">RING THREAT</div>
     <div id="action-controls" class="hidden">
       <div class="strike-types" role="group" aria-label="Strike type">
-        <button data-strike="hip" aria-pressed="true">1 Hip</button><button data-strike="elbow" aria-pressed="false">2 Elbow</button><button data-strike="knee" aria-pressed="false">3 Knee</button>
+        <button data-strike="hip" aria-label="1 Hip" aria-pressed="true"><span class="key-hint">1 </span>Hip</button><button data-strike="elbow" aria-label="2 Elbow" aria-pressed="false"><span class="key-hint">2 </span>Elbow</button><button data-strike="knee" aria-label="3 Knee" aria-pressed="false"><span class="key-hint">3 </span>Knee</button>
       </div>
-      <div class="defense-actions"><button id="pass-btn">Pass <small>Q</small></button><button id="deflect-btn">Deflect <small>E</small></button><button id="bump-btn">Bump <small>Shift</small></button></div>
+      <div class="defense-actions"><button id="pass-btn" aria-label="Pass to teammate">Pass <small class="key-hint">Q</small></button><button id="deflect-btn" aria-label="Block the ball">Block <small class="key-hint">E</small></button><button id="bump-btn" aria-label="Shoulder dash">Dash <small class="key-hint">Shift</small></button></div>
     </div>
     <div id="charge-meter" class="hidden"><div id="charge-label">HIP SMASH · HOLD / RELEASE</div><div class="charge-track"><div id="charge-fill"></div><div id="release-window"></div></div></div>
     <div id="hint" class="hidden">Move close to the ball and strike toward the sun-stone ring</div>
 
     <div id="touch-controls" class="hidden">
-      <div id="joystick"><div id="joystick-knob"></div></div>
-      <button id="hit-btn" aria-label="Strike the ball">HOLD<br>STRIKE</button>
+      <div id="joystick" role="group" aria-label="Movement joystick"><div id="joystick-knob"></div><span class="stick-label">MOVE</span></div>
+      <button id="hit-btn" aria-label="Strike the ball"><span id="touch-strike-name">HIP</span><strong>STRIKE</strong><small id="touch-strike-hint">HOLD · DRAG AIM</small></button>
     </div>
 
     <button id="pause-btn" class="hidden" aria-label="Pause game">Ⅱ</button>

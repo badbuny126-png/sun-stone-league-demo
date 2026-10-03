@@ -28,6 +28,43 @@ try {
           assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).difficulty,'hard');
           await page.locator('#countdown').waitFor({state:'hidden'});
           assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).ai.filter(f=>f.enabled).length,0);
+          // Check real button geometry at small and large phone sizes, not just visibility.
+          if(orientation==='portrait')for(const size of [{width:360,height:640},{width:390,height:844},{width:667,height:375},{width:844,height:390}]){
+            await page.setViewportSize(size);await page.waitForTimeout(150);
+            const selectors=['#joystick','#hit-btn','#pass-btn','#deflect-btn','#bump-btn','[data-strike=hip]','[data-strike=elbow]','[data-strike=knee]','#pause-btn'];
+            const boxes=await Promise.all(selectors.map(selector=>page.locator(selector).boundingBox()));
+            boxes.forEach((box,i)=>{
+              assert.ok(box&&box.width>=44&&box.height>=44,selectors[i]+' has a thumb-size target');
+              assert.ok(box.x>=8&&box.y>=8&&box.x+box.width<=size.width-8&&box.y+box.height<=size.height-8,selectors[i]+' stays inside the phone');
+              for(let j=0;j<i;j++){const other=boxes[j];assert.ok(box.x+box.width<=other.x||other.x+other.width<=box.x||box.y+box.height<=other.y||other.y+other.height<=box.y,selectors[i]+' does not overlap '+selectors[j]);}
+            });
+            assert.equal(await page.locator('#charge-meter').isVisible(),false,'charge ring replaces the separate phone meter');
+            await page.screenshot({path:`test-output/${name}-controls-${size.width}x${size.height}.png`});
+          }
+          await page.setViewportSize(viewport);
+          // Chromium sends real simultaneous touch pointers. WebKit also exercises pad dragging below.
+          if(name==='chromium'){
+            const session=await context.newCDPSession(page),stick=await page.locator('#joystick').boundingBox(),pad=await page.locator('#hit-btn').boundingBox();
+            const left={id:0,x:stick.x+stick.width/2,y:stick.y+stick.height/2},right={id:1,x:pad.x+pad.width/2,y:pad.y+pad.height/2};
+            const initial=(await page.evaluate(()=>window.__sunStoneTest.snapshot())).player;
+            await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[left,right]});
+            left.y+=24;right.y-=24;
+            await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[left,right]});
+            await page.waitForFunction(()=>window.__sunStoneTest.snapshot().charge>.25);
+            const state=await page.evaluate(()=>window.__sunStoneTest.snapshot());
+            assert.ok(state.player[2]>initial[2]+.1,'left thumb moves while right thumb charges');
+            assert.ok(Math.abs(Math.abs(state.aim)-Math.PI)<.01,'right thumb drag aims upward');
+            await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[left]});
+            assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).charging,false,'lifting right thumb releases independently');
+            await session.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});await session.detach();
+          }else{
+            const pad=await page.locator('#hit-btn').boundingBox();
+            await page.mouse.move(pad.x+pad.width/2,pad.y+pad.height/2);await page.mouse.down();
+            await page.mouse.move(pad.x+pad.width/2,pad.y+pad.height/2-24);
+            await page.waitForFunction(()=>window.__sunStoneTest.snapshot().charge>.15);
+            assert.ok(Math.abs(Math.abs((await page.evaluate(()=>window.__sunStoneTest.snapshot())).aim)-Math.PI)<.01);
+            await page.mouse.up();
+          }
           await page.getByRole('button',{name:'Pause game'}).click();
           const before=await page.locator('#center-value').textContent();
           await page.waitForTimeout(1200);

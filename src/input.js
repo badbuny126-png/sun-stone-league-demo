@@ -13,7 +13,7 @@ export function getMoveVector() {
 export function isMoveKeyDown(){return getMoveVector().moving;}
 export function setupInput(canvas,camera,getPlayerPos,actions) {
   const raycaster=new THREE.Raycaster(),plane=new THREE.Plane(new THREE.Vector3(0,1,0),-.95);
-  let aimId=null,stickId=null,strikeId=null,mouseHeld=false,keyHeld=false;
+  let aimId=null,stickId=null,strikeId=null,mouseHeld=false,keyHeld=false,strikeOrigin=null;
   const stick=document.getElementById('joystick'),knob=document.getElementById('joystick-knob'),hit=document.getElementById('hit-btn');
   function aim(event){const position=getPlayerPos();if(!position)return;const rect=canvas.getBoundingClientRect();raycaster.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);const point=new THREE.Vector3();if(raycaster.ray.intersectPlane(plane,point))mouseAimAngle=Math.atan2(point.x-position.x,point.z-position.z);}
   window.addEventListener('keydown',event=>{
@@ -34,11 +34,13 @@ export function setupInput(canvas,camera,getPlayerPos,actions) {
   stick.addEventListener('pointermove',event=>{if(event.pointerId===stickId)updateStick(event);});
   const releaseStick=event=>{if(event.pointerId!==stickId)return;stickId=null;touchMove.x=touchMove.z=0;knob.style.transform='';};
   for(const event of ['pointerup','pointercancel','lostpointercapture'])stick.addEventListener(event,releaseStick);
-  hit.addEventListener('pointerdown',event=>{event.preventDefault();if(strikeId!==null)return;strikeId=event.pointerId;hit.setPointerCapture(strikeId);actions.begin();});
-  hit.addEventListener('pointerup',event=>{if(event.pointerId===strikeId){strikeId=null;actions.release();}});
-  const cancelStrike=()=>{if(strikeId!==null){strikeId=null;actions.cancel();}};
+  hit.addEventListener('pointerdown',event=>{event.preventDefault();if(strikeId!==null)return;strikeId=event.pointerId;strikeOrigin={x:event.clientX,y:event.clientY};hit.setPointerCapture(strikeId);actions.begin();});
+  function padAim(event){if(event.pointerId!==strikeId||!strikeOrigin)return;const dx=event.clientX-strikeOrigin.x,dy=event.clientY-strikeOrigin.y;if(Math.hypot(dx,dy)>12)mouseAimAngle=Math.atan2(dx,dy);}
+  hit.addEventListener('pointermove',padAim);
+  hit.addEventListener('pointerup',event=>{if(event.pointerId===strikeId){padAim(event);strikeId=null;strikeOrigin=null;actions.release();}});
+  const cancelStrike=()=>{if(strikeId!==null){strikeId=null;strikeOrigin=null;actions.cancel();}};
   hit.addEventListener('pointercancel',cancelStrike);hit.addEventListener('lostpointercapture',cancelStrike);
-  resetControls=()=>{stickId=aimId=strikeId=null;mouseHeld=keyHeld=false;touchMove.x=touchMove.z=0;knob.style.transform='';actions.cancel();};
+  resetControls=()=>{stickId=aimId=strikeId=null;strikeOrigin=null;mouseHeld=keyHeld=false;touchMove.x=touchMove.z=0;knob.style.transform='';actions.cancel();};
   document.querySelectorAll('[data-strike]').forEach(button=>button.addEventListener('click',()=>{actions.select(button.dataset.strike);canvas.focus();}));
   for(const [id,action] of [['pass-btn','pass'],['deflect-btn','deflect'],['bump-btn','bump']])document.getElementById(id).addEventListener('click',()=>{actions[action]();canvas.focus();});
   window.addEventListener('blur',resetInput);document.addEventListener('visibilitychange',()=>{if(document.hidden)resetInput();});

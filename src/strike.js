@@ -10,6 +10,12 @@ export const DIFFICULTIES={
   normal:{assist:.14,reaction:.38,error:.10,speed:4.8,aggression:.7},
   hard:{assist:0,reaction:.18,error:.035,speed:5.4,aggression:.95},
 };
+// Ball/swept body approximation: a finite vertical capsule, never an infinite column.
+export function passiveBodyContact(actor,ball,ballRadius=.43) {
+  const closest=actor.position.clone();
+  closest.y+=THREE.MathUtils.clamp(ball.pos.y-actor.position.y,.35,1.65);
+  return closest.distanceToSquared(ball.pos)<=(.25+ballRadius)**2;
+}
 export function chargeQuality(type,seconds) {
   const spec=STRIKES[type]||STRIKES.hip;
   return THREE.MathUtils.clamp(1-Math.abs(seconds-spec.ideal)/(spec.ideal*.85),0,1);

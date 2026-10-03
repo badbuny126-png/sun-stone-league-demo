@@ -63,3 +63,42 @@ button{font:inherit;cursor:pointer}
 
 #hud.hidden ~ #ball-status{display:none}
 @media(max-width:500px) and (min-height:601px){#joystick{left:max(18px,env(safe-area-inset-left));width:96px;height:96px}#joystick-knob{width:36px;height:36px;left:28px;top:28px}#hit-btn{right:max(18px,env(safe-area-inset-right));bottom:max(28px,env(safe-area-inset-bottom));width:88px;height:88px}}
+
+/* Phone controls occupy two thumb zones; the centre of the court stays open. */
+html,body,#app{height:100dvh}
+button,#joystick{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.phone-help,.stick-label{display:none}
+#hit-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+#hit-btn small{font-size:8px;letter-spacing:0}
+#touch-strike-name{font-size:10px;letter-spacing:1px}
+.touch-layout .phone-help,.touch-layout .stick-label{display:block}
+.touch-layout .keyboard-help,.touch-layout .key-hint,.touch-layout #charge-meter{display:none}
+.touch-layout #touch-controls:not(.hidden){display:block!important}
+.touch-layout #hud{padding-top:calc(env(safe-area-inset-top) + 10px);padding-left:calc(env(safe-area-inset-left) + 12px);padding-right:calc(env(safe-area-inset-right) + 70px);gap:6px}
+.touch-layout .score-block,.touch-layout #timer-block{min-width:0;width:100%;padding:6px 8px}
+.touch-layout .score-label{font-size:8px;letter-spacing:.7px}
+.touch-layout .score-value{font-size:24px}
+.touch-layout #timer-block{width:76px}
+.touch-layout #pause-btn{top:calc(env(safe-area-inset-top) + 10px);right:calc(env(safe-area-inset-right) + 12px);width:48px;height:48px}
+.touch-layout #energy{top:calc(env(safe-area-inset-top) + 66px);bottom:auto;width:200px;padding:5px 8px;clip-path:none;border-radius:6px}
+.touch-layout .energy-label{font-size:9px;margin-bottom:3px;letter-spacing:.8px}
+.touch-layout .energy-track{height:5px}
+.touch-layout #ball-status{top:calc(env(safe-area-inset-top) + 101px);font-size:11px;max-width:94vw;overflow:hidden;text-overflow:ellipsis}
+.touch-layout #hint{top:calc(env(safe-area-inset-top) + 124px);bottom:auto;width:min(360px,90vw);font-size:11px}
+.touch-layout #hint:not(.practice-hint){display:none}
+.touch-layout #ring-warning{top:calc(env(safe-area-inset-top) + 153px);font-size:12px}
+.touch-layout #action-controls{top:auto;bottom:calc(env(safe-area-inset-bottom) + 148px);left:auto;right:calc(env(safe-area-inset-right) + 16px);flex-direction:column;gap:12px}
+.touch-layout #action-controls button{width:56px;min-width:56px;height:48px;padding:4px;font-size:12px;font-weight:800;border-radius:12px}
+.touch-layout .strike-types,.touch-layout .defense-actions{gap:6px}
+.touch-layout .strike-types{position:absolute;bottom:60px;right:0}
+.touch-layout #joystick{width:112px;height:112px;left:calc(env(safe-area-inset-left) + 18px);bottom:calc(env(safe-area-inset-bottom) + 20px)}
+.touch-layout #joystick-knob{width:42px;height:42px;left:33px;top:33px}
+.touch-layout .stick-label{position:absolute;bottom:12px;width:100%;text-align:center;color:var(--sand);font-size:9px;letter-spacing:1.5px;pointer-events:none}
+.touch-layout #hit-btn{width:108px;height:108px;right:calc(env(safe-area-inset-right) + 24px);bottom:calc(env(safe-area-inset-bottom) + 24px);border:0;overflow:visible;font-size:16px;touch-action:none;--charge-angle:0deg;--window-start:188deg;--window-end:244deg}
+.touch-layout #hit-btn::before,.touch-layout #hit-btn::after{content:'';position:absolute;inset:-7px;border-radius:50%;pointer-events:none;-webkit-mask:radial-gradient(transparent 62%,#000 64%);mask:radial-gradient(transparent 62%,#000 64%)}
+.touch-layout #hit-btn::before{background:conic-gradient(var(--jade) 0deg var(--charge-angle),#443021 var(--charge-angle) 360deg)}
+.touch-layout #hit-btn::after{background:conic-gradient(transparent 0deg var(--window-start),#ffe18b var(--window-start) var(--window-end),transparent var(--window-end) 360deg);opacity:.8}
+.touch-layout #hit-btn.perfect::before{background:#ffe18b;filter:drop-shadow(0 0 8px #ffb63e)}
+.touch-layout #hit-btn small{font-size:9px;font-weight:bold}
+.touch-layout #hit-btn.perfect small{color:#4c2205}
+@media(max-height:500px){.touch-layout #hud{max-width:540px;left:50%;transform:translateX(-50%);padding-right:12px}.touch-layout #hint{top:calc(env(safe-area-inset-top) + 124px);font-size:10px;width:48vw}.touch-layout #ring-warning{top:calc(env(safe-area-inset-top) + 148px)}}
