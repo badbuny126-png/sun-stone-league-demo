@@ -29,7 +29,7 @@ try {
           await page.locator('#countdown').waitFor({state:'hidden'});
           assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).ai.filter(f=>f.enabled).length,0);
           // Check real button geometry at small and large phone sizes, not just visibility.
-          if(orientation==='portrait')for(const size of [{width:360,height:640},{width:390,height:844},{width:667,height:375},{width:844,height:390}]){
+          if(orientation==='portrait')for(const size of [{width:320,height:568},{width:360,height:640},{width:390,height:844},{width:568,height:320},{width:667,height:280},{width:667,height:375},{width:844,height:390}]){
             await page.setViewportSize(size);await page.waitForTimeout(150);
             const selectors=['#joystick','#hit-btn','#pass-btn','#deflect-btn','#bump-btn','[data-strike=hip]','[data-strike=elbow]','[data-strike=knee]','#pause-btn'];
             const boxes=await Promise.all(selectors.map(selector=>page.locator(selector).boundingBox()));

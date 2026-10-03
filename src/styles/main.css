@@ -102,3 +102,19 @@ button,#joystick{-webkit-user-select:none;user-select:none;-webkit-touch-callout
 .touch-layout #hit-btn small{font-size:9px;font-weight:bold}
 .touch-layout #hit-btn.perfect small{color:#4c2205}
 @media(max-height:500px){.touch-layout #hud{max-width:540px;left:50%;transform:translateX(-50%);padding-right:12px}.touch-layout #hint{top:calc(env(safe-area-inset-top) + 124px);font-size:10px;width:48vw}.touch-layout #ring-warning{top:calc(env(safe-area-inset-top) + 148px)}}
+@media(max-height:360px) and (orientation:landscape){
+  .touch-layout #hud{max-width:360px}
+  .touch-layout .score-block,.touch-layout #timer-block{padding:4px 6px}
+  .touch-layout .score-value{font-size:20px}
+  .touch-layout #energy{top:calc(env(safe-area-inset-top) + 54px);width:168px}
+  .touch-layout #ball-status{top:calc(env(safe-area-inset-top) + 85px);max-width:30vw;font-size:10px}
+  .touch-layout #hint{top:calc(env(safe-area-inset-top) + 108px);width:36vw;font-size:10px}
+  .touch-layout #ring-warning{top:calc(env(safe-area-inset-top) + 135px)}
+  .touch-layout #action-controls{bottom:calc(env(safe-area-inset-bottom) + 116px)}
+  .touch-layout #action-controls button{height:44px}
+  .touch-layout .strike-types{bottom:56px}
+  .touch-layout #joystick{width:96px;height:96px;bottom:calc(env(safe-area-inset-bottom) + 16px)}
+  .touch-layout #joystick-knob{width:36px;height:36px;left:28px;top:28px}
+  .touch-layout #hit-btn{width:92px;height:92px;bottom:calc(env(safe-area-inset-bottom) + 16px);font-size:14px}
+  .touch-layout #hit-btn small{font-size:8px}
+}
