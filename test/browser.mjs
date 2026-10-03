@@ -54,7 +54,8 @@ try {
             const state=await page.evaluate(()=>window.__sunStoneTest.snapshot());
             assert.ok(state.player[2]>initial[2]+.1,'left thumb moves while right thumb charges');
             assert.ok(Math.abs(Math.abs(state.aim)-Math.PI)<.01,'right thumb drag aims upward');
-            await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[left]});
+            await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[left]});
+            await page.waitForFunction(()=>!window.__sunStoneTest.snapshot().charging);
             assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).charging,false,'lifting right thumb releases independently');
             await session.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});await session.detach();
           }else{
