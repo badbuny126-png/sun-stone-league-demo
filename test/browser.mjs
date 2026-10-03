@@ -24,7 +24,7 @@ try {
           await page.goto('http://127.0.0.1:4173/?e2e=1');
           await page.locator('#loading').waitFor({state:'hidden',timeout:30000});
           await page.locator('#difficulty').selectOption('hard');
-          await page.getByRole('button',{name:/Solo Challenge/}).click();
+          await page.getByRole('button',{name:/Practice Drill/}).click();
           assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).difficulty,'hard');
           await page.locator('#countdown').waitFor({state:'hidden'});
           assert.equal((await page.evaluate(()=>window.__sunStoneTest.snapshot())).ai.filter(f=>f.enabled).length,0);
@@ -67,6 +67,10 @@ try {
             assert.ok(Math.abs(Math.abs((await page.evaluate(()=>window.__sunStoneTest.snapshot())).aim)-Math.PI)<.01);
             await page.mouse.up();
           }
+          await page.getByRole('button',{name:'Pause game'}).click();
+          await page.locator('#pause-menu-btn').click();
+          await page.getByRole('button',{name:/Solo Challenge/}).click();
+          await page.locator('#countdown').waitFor({state:'hidden'});
           await page.getByRole('button',{name:'Pause game'}).click();
           const before=await page.locator('#center-value').textContent();
           await page.waitForTimeout(1200);
