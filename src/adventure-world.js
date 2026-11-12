@@ -18,6 +18,7 @@ function smoothHill(x, z, cx, cz, radius, height) {
 }
 
 function terrainHeight(x, z) {
+  if (Math.abs(x - 25) < 5 && Math.abs(z) < 2.7) return 0.34;
   const hills = smoothHill(x, z, -34, -31, 25, 1.5)
     + smoothHill(x, z, -38, 30, 24, 1.05)
     + smoothHill(x, z, 4, 45, 22, 0.85);
@@ -62,6 +63,18 @@ export function createAdventureWorld(scene, seed = 2407) {
   );
   water.position.set(25, 0.04, 0);
   root.add(water);
+  const bridge = new THREE.Group();
+  const bridgeStone = new THREE.MeshStandardMaterial({ color: 0x887d62, roughness: 0.94 });
+  const bridgeDeck = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.22, 5.6), bridgeStone);
+  bridgeDeck.position.set(25, 0.23, 0);
+  bridge.add(bridgeDeck);
+  const bridgeTimber = new THREE.MeshStandardMaterial({ color: 0x765039, roughness: 1 });
+  for (let plank = 0; plank < 7; plank += 1) {
+    const board = new THREE.Mesh(new THREE.BoxGeometry(9.5, 0.08, 0.62), bridgeTimber);
+    board.position.set(25, 0.38, -2.25 + plank * 0.75);
+    bridge.add(board);
+  }
+  root.add(bridge);
   const bankMaterial = new THREE.MeshStandardMaterial({ color: 0x87734e, roughness: 1 });
   for (const side of [-1, 1]) {
     const bank = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.48, WORLD_SIZE), bankMaterial);
@@ -174,6 +187,12 @@ export function createAdventureWorld(scene, seed = 2407) {
     root,
     resources,
     heightAt: terrainHeight,
+    canMoveTo(x, z) {
+      if (Math.abs(x - 25) < 4.8 && Math.abs(z) > 2.7) return false;
+      if (treePositions.some((tree) => Math.hypot(x - tree.x, z - tree.z) < 1.25)) return false;
+      if (rockPositions.some((rock) => Math.hypot(x - rock.x, z - rock.z) < 0.95)) return false;
+      return true;
+    },
     update(time) {
       for (const item of resources) {
         if (!item.collected) {
