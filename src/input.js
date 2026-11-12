@@ -70,8 +70,8 @@ export function setupInput(canvas, camera, getPlayerPos, onHit) {
     const distance = Math.hypot(dx, dy);
     if (distance > max) { dx *= max / distance; dy *= max / distance; }
     touchMove.x = dx / max;
-    // Screen Y increases downward, while forward movement is negative world Z.
-    touchMove.z = -dy / max;
+    // The court camera looks toward negative Z, so an upward screen drag maps to negative Z.
+    touchMove.z = dy / max;
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     // Movement does not overwrite the independently chosen aim.
   };
