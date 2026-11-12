@@ -69,10 +69,11 @@ export function setupInput(canvas, camera, getPlayerPos, onHit) {
     const max = rect.width * 0.32;
     const distance = Math.hypot(dx, dy);
     if (distance > max) { dx *= max / distance; dy *= max / distance; }
-    // This build's court/player coordinate frame is opposite the on-screen stick displacement.
-    // Invert both axes so the character follows the direction the thumb is pushed.
-    touchMove.x = -dx / max;
-    touchMove.z = -dy / max;
+    // The camera looks toward the court from +Z: screen-right is +X and
+    // screen-up is -Z. The joystick's raw displacement therefore maps directly
+    // to world X/Z (dy is already negative when the thumb moves upward).
+    touchMove.x = dx / max;
+    touchMove.z = dy / max;
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     // Movement does not overwrite the independently chosen aim.
   };
