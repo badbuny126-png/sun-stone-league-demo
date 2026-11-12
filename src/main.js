@@ -162,6 +162,7 @@ function startGame(selectedMode) {
   $('gather-btn').classList.toggle('hidden', !exploring || !matchMedia('(pointer: coarse)').matches);
   $('hit-btn').classList.toggle('hidden', exploring);
   arena.visible = !exploring; fallbackDecor.visible = !exploring && baseFallbackVisibility;
+  if (adventureWorld) adventureWorld.root.visible = exploring;
   if (ringMesh) ringMesh.visible = !exploring;
   ballMesh.visible = !exploring; aimGroup.visible = !exploring;
   if (exploring) {
@@ -176,6 +177,7 @@ function startGame(selectedMode) {
   if (aiChar) aiChar.visible = mode === 'versus';
   if (exploring && playerChar) { playerChar.position.set(0, 0, 0); playerChar.rotation.y = 0; }
   if ($('adventure-prompt')) $('adventure-prompt').textContent = 'Explore the forest. Press E near a glowing resource.';
+  $('hint').textContent = exploring ? (matchMedia('(pointer: coarse)').matches ? 'Use the left stick to explore · GATHER near glowing resources' : 'WASD / arrows to explore · E to gather nearby resources') : (matchMedia('(pointer: coarse)').matches ? 'Left stick: move · Drag court: aim · Strike near ball' : 'WASD: move · Mouse: aim · Space: hip strike');
   updateHUD(); resetPositions();
   if (exploring && playerChar) playerChar.position.set(0, adventureWorld.heightAt(0, 0), 0);
   beginCountdown();
@@ -188,6 +190,7 @@ $('menu-btn').addEventListener('click', () => {
   $('endscreen').style.display = 'none'; $('menu').style.display = 'flex';
   $('hud').classList.add('hidden'); $('energy').classList.add('hidden'); $('touch-controls').classList.add('hidden');
   $('adventure-hud').classList.add('hidden'); $('gather-btn').classList.add('hidden');
+  if (adventureWorld) adventureWorld.root.visible = false;
   arena.visible = true; fallbackDecor.visible = baseFallbackVisibility; if (ringMesh) ringMesh.visible = true; ballMesh.visible = true; aimGroup.visible = true;
   $('hit-btn').classList.remove('hidden');
   if (aiChar) aiChar.visible = true;
