@@ -22,7 +22,7 @@ function terrainHeight(x, z) {
   const hills = smoothHill(x, z, -34, -31, 25, 1.5)
     + smoothHill(x, z, -38, 30, 24, 1.05)
     + smoothHill(x, z, 4, 45, 22, 0.85);
-  const riverValley = Math.exp(-((x - 25) / 8) ** 2) * 0.62;
+  const riverValley = Math.exp(-(((x - 25) / 8) ** 2)) * 0.62;
   const rolling = (Math.sin(x * 0.105) * Math.cos(z * 0.082) + Math.sin((x + z) * 0.052) * 0.45) * 0.16;
   const spawnClearing = Math.min(1, Math.hypot(x, z) / 13);
   return Math.max(-0.05, (hills + rolling - riverValley) * spawnClearing);
@@ -35,7 +35,6 @@ function addInstanced(root, geometry, material, positions, makeTransform) {
     makeTransform(dummy, position, index);
     dummy.updateMatrix();
     mesh.setMatrixAt(index, dummy.matrix);
-    if (position.color) mesh.setColorAt(index, new THREE.Color(position.color));
   });
   mesh.instanceMatrix.needsUpdate = true;
   root.add(mesh);
@@ -84,15 +83,13 @@ export function createAdventureWorld(scene, seed = 2407) {
     dummy.rotation.y = random() * Math.PI;
     dummy.scale.setScalar(p.scale);
   });
-  addInstanced(root, canopyGeometry, canopyMaterial, treePositions, (dummy, p, i) => {
+  const canopies = addInstanced(root, canopyGeometry, canopyMaterial, treePositions, (dummy, p, i) => {
     dummy.position.set(p.x, p.y + 3.55 * p.scale, p.z);
     dummy.scale.set(1.05 * p.scale, (0.88 + random() * 0.32) * p.scale, 1.05 * p.scale);
     dummy.rotation.y = i * 0.71;
-  }).instanceColor && treePositions.forEach((p, i) => {
-    // Set per-tree canopy color without separate draw calls.
-    const canopy = root.children.find((child) => child.isInstancedMesh && child.geometry === canopyGeometry);
-    if (canopy) canopy.setColorAt(i, new THREE.Color(p.color));
   });
+  treePositions.forEach((p, i) => canopies.setColorAt(i, new THREE.Color(p.color)));
+  if (canopies.instanceColor) canopies.instanceColor.needsUpdate = true;
 
   const rockPositions = [];
   for (let i = 0; i < 54; i += 1) {
