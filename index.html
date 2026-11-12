@@ -28,6 +28,7 @@
         <p>Enter the ancient court. Build kinetic energy and strike the sacred ball through the sun-stone ring.</p>
         <button class="mode-btn" data-mode="solo"><strong>Solo Challenge</strong><span>Score as many rings as you can in 60 seconds</span></button>
         <button class="mode-btn" data-mode="versus"><strong>1v1 vs Rival</strong><span>First warrior to score 3 rings wins</span></button>
+        <button class="mode-btn adventure-mode-btn" data-mode="adventure"><strong>Lost Courts: Jungle Expedition</strong><span>Explore the jungle, gather resources and uncover an ancient ruin</span></button>
         <div class="controls-copy">WASD / arrows to move · mouse to aim · Space to strike</div>
       </div>
     </div>
@@ -47,6 +48,8 @@
     </div>
 
     <div id="hint" class="hidden">Move close to the ball and strike toward the sun-stone ring</div>
+    <div id="adventure-hud" class="hidden"><strong>JUNGLE EXPEDITION</strong><span id="resource-counts">Wood 0 · Stone 0 · Fiber 0</span><small id="adventure-prompt">Explore the forest. Press E near a resource to gather it.</small></div>
+    <button id="gather-btn" class="hidden" aria-label="Gather nearby resource">GATHER</button>
 
     <div id="touch-controls" class="hidden">
       <div id="joystick"><div id="joystick-knob"></div></div>
