@@ -69,11 +69,17 @@ export function setupInput(canvas, camera, getPlayerPos, onHit) {
     const max = rect.width * 0.32;
     const distance = Math.hypot(dx, dy);
     if (distance > max) { dx *= max / distance; dy *= max / distance; }
-    // The camera looks toward the court from +Z: screen-right is +X and
-    // screen-up is -Z. The joystick's raw displacement therefore maps directly
-    // to world X/Z (dy is already negative when the thumb moves upward).
-    touchMove.x = dx / max;
-    touchMove.z = dy / max;
+    // Convert screen-space joystick movement through the camera's current
+    // horizontal basis. The camera can yaw while tracking the ball; fixed world
+    // X/Z axes make the stick appear reversed after certain scoring angles.
+    const forward = camera.getWorldDirection(new THREE.Vector3());
+    forward.y = 0;
+    forward.normalize();
+    const right = new THREE.Vector3().crossVectors(forward, camera.up);
+    right.y = 0;
+    right.normalize();
+    touchMove.x = (right.x * dx - forward.x * dy) / max;
+    touchMove.z = (right.z * dx - forward.z * dy) / max;
     knob.style.transform = `translate(${dx}px, ${dy}px)`;
     // Movement does not overwrite the independently chosen aim.
   };
