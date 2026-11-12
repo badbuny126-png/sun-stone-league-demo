@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 
 const WORLD_SIZE = 120;
-const HALF_WORLD = WORLD_SIZE / 2;
 const RESOURCE_TYPES = [
   { id: 'wood', color: 0xb8783e },
   { id: 'stone', color: 0xaab2a5 },
@@ -37,6 +36,8 @@ function addInstanced(root, geometry, material, positions, makeTransform) {
     mesh.setMatrixAt(index, dummy.matrix);
   });
   mesh.instanceMatrix.needsUpdate = true;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   root.add(mesh);
   return mesh;
 }
@@ -47,7 +48,7 @@ export function createAdventureWorld(scene, seed = 2407) {
   root.name = 'lost-courts-jungle';
   const groundGeometry = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, 64, 64);
   const vertices = groundGeometry.attributes.position;
-  for (let i = 0; i < vertices.count; i += 1) vertices.setZ(i, terrainHeight(vertices.getX(i), vertices.getY(i)));
+  for (let i = 0; i < vertices.count; i += 1) vertices.setZ(i, terrainHeight(vertices.getX(i), -vertices.getY(i)));
   groundGeometry.computeVertexNormals();
   const ground = new THREE.Mesh(groundGeometry, new THREE.MeshStandardMaterial({ color: 0x657b43, roughness: 1 }));
   ground.rotation.x = -Math.PI / 2;
