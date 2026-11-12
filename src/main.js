@@ -5,6 +5,7 @@ import { createBall, updateBallVisual, BallState } from './ball.js';
 import { setupInput, getMoveVector } from './input.js';
 import * as Input from './input.js';
 import { shotVelocity } from './shot.js';
+import { createAdventureWorld } from './adventure-world.js';
 
 const $ = (id) => document.getElementById(id);
 function hasWebGL() {
@@ -37,6 +38,9 @@ addLighting(scene);
 const { ringMesh, ringWorldPos, arena, fallbackDecor } = createCourt(scene);
 const ballMesh = createBall(scene);
 const ballState = new BallState();
+let adventureWorld = null;
+const adventureInventory = { wood: 0, stone: 0, fiber: 0 };
+const baseFallbackVisibility = fallbackDecor.visible;
 
 const manager = new THREE.LoadingManager();
 manager.onProgress = (_url, loaded, total) => { $('loadbar').style.width = `${Math.round(loaded / total * 100)}%`; };
@@ -126,6 +130,7 @@ function resetPositions() {
 
 function updateHUD() {
   $('score-player').textContent = scorePlayer; $('score-ai').textContent = scoreAI;
+  if ($('resource-counts')) $('resource-counts').textContent = `Wood ${adventureInventory.wood} · Stone ${adventureInventory.stone} · Fiber ${adventureInventory.fiber}`;
   $('center-value').textContent = mode === 'solo' ? Math.max(0, Math.ceil(timeLeft)) : TARGET_SCORE;
   const energy = Math.round(THREE.MathUtils.clamp(ballState.vel.length() / 15, 0, 1) * 100);
   $('energy-fill').style.width = `${energy}%`; $('energy-value').textContent = `${energy}%`;
@@ -151,13 +156,31 @@ function startGame(selectedMode) {
   paused=false;$('pause-screen').style.display='none';$('pause-btn').classList.remove('hidden');$('hint').classList.remove('hidden');
   canvas.focus(); mode = selectedMode; scorePlayer = 0; scoreAI = 0; timeLeft = SOLO_SECONDS;
   $('menu').style.display = 'none'; $('endscreen').style.display = 'none';
-  $('hud').classList.remove('hidden'); $('energy').classList.remove('hidden');
+  const exploring = selectedMode === 'adventure';
+  $('hud').classList.toggle('hidden', exploring); $('energy').classList.toggle('hidden', exploring);
+  $('adventure-hud').classList.toggle('hidden', !exploring);
+  $('gather-btn').classList.toggle('hidden', !exploring || !matchMedia('(pointer: coarse)').matches);
+  $('hit-btn').classList.toggle('hidden', exploring);
+  arena.visible = !exploring; fallbackDecor.visible = !exploring && baseFallbackVisibility;
+  if (adventureWorld) adventureWorld.root.visible = exploring;
+  if (ringMesh) ringMesh.visible = !exploring;
+  ballMesh.visible = !exploring; aimGroup.visible = !exploring;
+  if (exploring) {
+    adventureWorld ||= createAdventureWorld(scene, 2407);
+    const saved = localStorage.getItem('sun-stone-jungle-inventory');
+    if (saved) { try { Object.assign(adventureInventory, JSON.parse(saved)); } catch { /* Ignore invalid local save. */ } }
+  }
   if (matchMedia('(pointer: coarse)').matches) $('touch-controls').classList.remove('hidden');
   $('rival-score').style.display = mode === 'solo' ? 'none' : '';
   $('player-label').textContent = mode === 'solo' ? 'Rings' : 'Tikal';
   $('center-label').textContent = mode === 'solo' ? 'Time' : 'First to';
   if (aiChar) aiChar.visible = mode === 'versus';
-  updateHUD(); resetPositions(); beginCountdown();
+  if (exploring && playerChar) { playerChar.position.set(0, 0, 0); playerChar.rotation.y = 0; }
+  if ($('adventure-prompt')) $('adventure-prompt').textContent = 'Explore the forest. Press E near a glowing resource.';
+  $('hint').textContent = exploring ? (matchMedia('(pointer: coarse)').matches ? 'Use the left stick to explore · GATHER near glowing resources' : 'WASD / arrows to explore · E to gather nearby resources') : (matchMedia('(pointer: coarse)').matches ? 'Left stick: move · Drag court: aim · Strike near ball' : 'WASD: move · Mouse: aim · Space: hip strike');
+  updateHUD(); resetPositions();
+  if (exploring && playerChar) playerChar.position.set(0, adventureWorld.heightAt(0, 0), 0);
+  beginCountdown();
 }
 
 document.querySelectorAll('.mode-btn').forEach((button) => button.addEventListener('click', () => startGame(button.dataset.mode)));
@@ -166,6 +189,10 @@ $('menu-btn').addEventListener('click', () => {
   phase = 'menu'; mode = null; Input.resetInput();
   $('endscreen').style.display = 'none'; $('menu').style.display = 'flex';
   $('hud').classList.add('hidden'); $('energy').classList.add('hidden'); $('touch-controls').classList.add('hidden');
+  $('adventure-hud').classList.add('hidden'); $('gather-btn').classList.add('hidden');
+  if (adventureWorld) adventureWorld.root.visible = false;
+  arena.visible = true; fallbackDecor.visible = baseFallbackVisibility; if (ringMesh) ringMesh.visible = true; ballMesh.visible = true; aimGroup.visible = true;
+  $('hit-btn').classList.remove('hidden');
   if (aiChar) aiChar.visible = true;
 });
 
@@ -184,6 +211,18 @@ function tryPlayerHit() {
   applyHit(playerChar.position,currentAimAngle,'player');playerHitCooldown=.45;playerSwingTimer=.45;
 }
 setupInput(canvas, camera, () => playerChar?.position, tryPlayerHit);
+function gatherNearby() {
+  if (mode !== 'adventure' || phase !== 'playing' || !playerChar || !adventureWorld) return;
+  const item = adventureWorld.harvest(playerChar.position, 3.2);
+  if (!item) { $('adventure-prompt').textContent = 'Nothing close enough. Move beside a glowing node.'; return; }
+  burst(playerChar.position.clone().add(new THREE.Vector3(0, 1.2, 0)), item === 'wood' ? 0xb8783e : item === 'stone' ? 0xaab2a5 : 0x8fcb55, 9);
+  adventureInventory[item] = (adventureInventory[item] || 0) + 1;
+  localStorage.setItem('sun-stone-jungle-inventory', JSON.stringify(adventureInventory));
+  $('adventure-prompt').textContent = `Gathered 1 ${item}. Keep exploring!`;
+  tone(620, .12, 'triangle', .05); updateHUD();
+}
+$('gather-btn').addEventListener('click', gatherNearby);
+addEventListener('keydown', (event) => { if (event.code === 'KeyE' && !event.repeat) gatherNearby(); });
 $('hint').textContent=matchMedia('(pointer: coarse)').matches?'Left stick: move · Drag court: aim · Strike near ball':'WASD: move · Mouse: aim · Space: hip strike';
 
 function registerScore() {
@@ -215,8 +254,12 @@ function updatePlayer(dt) {
   const { mx, mz, moving } = getMoveVector();
   const previous=playerChar.position.clone();
   if (moving) {
-    playerChar.position.x = THREE.MathUtils.clamp(playerChar.position.x + mx * PLAYER_SPEED * dt, -COURT_WIDTH / 2 + .75, COURT_WIDTH / 2 - .75);
-    playerChar.position.z = THREE.MathUtils.clamp(playerChar.position.z + mz * PLAYER_SPEED * dt, -COURT_LENGTH / 2 + 1, COURT_LENGTH / 2 - 1);
+    const limit = mode === 'adventure' ? 57 : COURT_WIDTH / 2 - .75;
+    const depthLimit = mode === 'adventure' ? 57 : COURT_LENGTH / 2 - 1;
+    const nextX = THREE.MathUtils.clamp(playerChar.position.x + mx * PLAYER_SPEED * dt, -limit, limit);
+    const nextZ = THREE.MathUtils.clamp(playerChar.position.z + mz * PLAYER_SPEED * dt, -depthLimit, depthLimit);
+    if (mode !== 'adventure' || adventureWorld?.canMoveTo(nextX, playerChar.position.z)) playerChar.position.x = nextX;
+    if (mode !== 'adventure' || adventureWorld?.canMoveTo(playerChar.position.x, nextZ)) playerChar.position.z = nextZ;
     const target=Math.atan2(mx,mz),turn=Math.atan2(Math.sin(target-playerChar.rotation.y),Math.cos(target-playerChar.rotation.y));
     if(playerSwingTimer<=0)playerChar.rotation.y+=turn*(1-Math.exp(-14*dt));
   }
@@ -246,6 +289,12 @@ const desiredCamera = new THREE.Vector3(); const cameraTarget = new THREE.Vector
 const clock = new THREE.Clock(); let elapsed = 0;
 function updateCamera(dt) {
   if (!playerChar) return;
+  if (mode === 'adventure') {
+    cameraTarget.copy(playerChar.position); cameraTarget.y = 1.4;
+    const portrait = innerHeight > innerWidth;
+    desiredCamera.set(playerChar.position.x + 0.5, portrait ? 12 : 9, playerChar.position.z + (portrait ? 16 : 12));
+    camera.position.lerp(desiredCamera, 1 - Math.pow(.002, dt)); camera.lookAt(cameraTarget); return;
+  }
   cameraTarget.copy(playerChar.position).lerp(ballState.pos,.28);cameraTarget.y=1.5;
   const portrait=innerHeight>innerWidth;
   desiredCamera.set(playerChar.position.x*.4,portrait?8.8:6.8,Math.min(COURT_LENGTH/2-1,playerChar.position.z+(portrait?12:10)));
@@ -270,16 +319,19 @@ function tick() {
       else{resetPositions();phase='playing';}
     }
   }
+  if (adventureWorld) adventureWorld.update(elapsed);
   if(phase==='playing'&&!paused) {
     if(mode==='solo'){timeLeft=Math.max(0,timeLeft-wallDt);if(timeLeft===0)finishGame();}
-    if(phase==='playing'){
+    if (mode === 'adventure') updatePlayer(dt);
+    if(phase==='playing' && mode !== 'adventure'){
       updatePlayer(dt);updateAI(dt);
       if(ballState.update(dt,ringWorldPos))registerScore();
     }
   }
-  ballMesh.position.copy(ballState.pos); updateBallVisual(ballMesh, ballState.vel, dt);
-  updateCourt(arena, elapsed); updateParticles(dt); updateHUD();
-  if (playerChar) {
+  if (mode !== 'adventure') { ballMesh.position.copy(ballState.pos); updateBallVisual(ballMesh, ballState.vel, dt); }
+  if (mode !== 'adventure') updateCourt(arena, elapsed); updateParticles(dt); updateHUD();
+  if (playerChar && mode === 'adventure' && adventureWorld) playerChar.position.y = adventureWorld.heightAt(playerChar.position.x, playerChar.position.z);
+  if (playerChar && mode !== 'adventure') {
     currentAimAngle = Input.mouseAimAngle;
     aimGroup.position.set(playerChar.position.x, .035, playerChar.position.z); aimGroup.rotation.y = currentAimAngle;
     aimRing.material.opacity = .5 + Math.sin(elapsed * 5) * .18;
