@@ -17,10 +17,20 @@
 
 ## Milestone 1 — Jungle exploration prototype
 
-- Add a separate adventure entry point; do not replace arena modes.
-- Build one deterministic 120 × 120 jungle region with instanced trees, rocks, a river, a ruin landmark and collectible resource nodes.
-- Add keyboard/touch-compatible movement, proximity harvesting, a small resource HUD and local save/restore.
-- Add unit tests for deterministic world placement and one-time harvesting.
+**Implemented in the current branch; browser validation is in progress.**
+
+- Separate adventure entry point; existing arena modes remain available.
+- Deterministic 120 × 120 jungle region with subdivided rolling terrain, instanced trees, rocks and undergrowth, a river, waterfall, temple ruin and glowing resource nodes.
+- Stone crossing over the river; basic obstacle collision for trees and rocks.
+- Keyboard and touch movement, proximity harvesting, resource HUD and local inventory persistence.
+- Automated tests for deterministic placement, terrain elevation, one-time harvesting and river-crossing rules.
+
+## Milestone 2 — Survival systems (next)
+
+- Inventory screen with item stacks, capacity and clear feedback.
+- Harvesting tools, resource-specific interaction and craftable recipes.
+- Workbench and storage containers; save inventory and placed objects with a versioned local-world schema.
+- Farming plots and a small construction system after the inventory/crafting foundation is stable.
 
 ## Subsequent milestones
 
