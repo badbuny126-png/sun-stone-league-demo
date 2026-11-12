@@ -256,8 +256,10 @@ function updatePlayer(dt) {
   if (moving) {
     const limit = mode === 'adventure' ? 57 : COURT_WIDTH / 2 - .75;
     const depthLimit = mode === 'adventure' ? 57 : COURT_LENGTH / 2 - 1;
-    playerChar.position.x = THREE.MathUtils.clamp(playerChar.position.x + mx * PLAYER_SPEED * dt, -limit, limit);
-    playerChar.position.z = THREE.MathUtils.clamp(playerChar.position.z + mz * PLAYER_SPEED * dt, -depthLimit, depthLimit);
+    const nextX = THREE.MathUtils.clamp(playerChar.position.x + mx * PLAYER_SPEED * dt, -limit, limit);
+    const nextZ = THREE.MathUtils.clamp(playerChar.position.z + mz * PLAYER_SPEED * dt, -depthLimit, depthLimit);
+    if (mode !== 'adventure' || adventureWorld?.canMoveTo(nextX, playerChar.position.z)) playerChar.position.x = nextX;
+    if (mode !== 'adventure' || adventureWorld?.canMoveTo(playerChar.position.x, nextZ)) playerChar.position.z = nextZ;
     const target=Math.atan2(mx,mz),turn=Math.atan2(Math.sin(target-playerChar.rotation.y),Math.cos(target-playerChar.rotation.y));
     if(playerSwingTimer<=0)playerChar.rotation.y+=turn*(1-Math.exp(-14*dt));
   }
