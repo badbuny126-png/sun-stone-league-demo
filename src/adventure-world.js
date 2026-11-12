@@ -18,7 +18,7 @@ function smoothHill(x, z, cx, cz, radius, height) {
 }
 
 function terrainHeight(x, z) {
-  if (Math.abs(x - 25) < 5 && Math.abs(z) < 2.7) return 0.34;
+  if (Math.abs(x - 25) < 5 && Math.abs(z) < 2.7) return 0.42;
   const hills = smoothHill(x, z, -34, -31, 25, 1.5)
     + smoothHill(x, z, -38, 30, 24, 1.05)
     + smoothHill(x, z, 4, 45, 22, 0.85);
@@ -108,7 +108,7 @@ export function createAdventureWorld(scene, seed = 2407) {
   const rockPositions = [];
   for (let i = 0; i < 54; i += 1) {
     const x = (random() - 0.5) * 106, z = (random() - 0.5) * 106;
-    if (Math.hypot(x, z) < 9 || Math.abs(x - 25) < 5) continue;
+    if (Math.hypot(x, z) < 9 || Math.abs(x - 25) < 5 || (Math.abs(x - 25) < 6 && Math.abs(z) < 4)) continue;
     rockPositions.push({ x, z, y: terrainHeight(x, z), scale: 0.55 + random() * 0.8 });
   }
   addInstanced(root, new THREE.DodecahedronGeometry(0.72, 0), new THREE.MeshStandardMaterial({ color: 0x777b6b, roughness: 1 }), rockPositions, (dummy, p) => {
