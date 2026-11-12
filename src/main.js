@@ -40,6 +40,7 @@ const ballMesh = createBall(scene);
 const ballState = new BallState();
 let adventureWorld = null;
 const adventureInventory = { wood: 0, stone: 0, fiber: 0 };
+const baseFallbackVisibility = fallbackDecor.visible;
 
 const manager = new THREE.LoadingManager();
 manager.onProgress = (_url, loaded, total) => { $('loadbar').style.width = `${Math.round(loaded / total * 100)}%`; };
@@ -159,7 +160,8 @@ function startGame(selectedMode) {
   $('hud').classList.toggle('hidden', exploring); $('energy').classList.toggle('hidden', exploring);
   $('adventure-hud').classList.toggle('hidden', !exploring);
   $('gather-btn').classList.toggle('hidden', !exploring || !matchMedia('(pointer: coarse)').matches);
-  arena.visible = !exploring; fallbackDecor.visible = !exploring && fallbackDecor.visible;
+  $('hit-btn').classList.toggle('hidden', exploring);
+  arena.visible = !exploring; fallbackDecor.visible = !exploring && baseFallbackVisibility;
   if (ringMesh) ringMesh.visible = !exploring;
   ballMesh.visible = !exploring; aimGroup.visible = !exploring;
   if (exploring) {
@@ -173,8 +175,10 @@ function startGame(selectedMode) {
   $('center-label').textContent = mode === 'solo' ? 'Time' : 'First to';
   if (aiChar) aiChar.visible = mode === 'versus';
   if (exploring && playerChar) { playerChar.position.set(0, 0, 0); playerChar.rotation.y = 0; }
-  if ($('adventure-prompt')) $('adventure-prompt').textContent = 'Explore the forest. Press E near a resource to gather it.';
-  updateHUD(); resetPositions(); beginCountdown();
+  if ($('adventure-prompt')) $('adventure-prompt').textContent = 'Explore the forest. Press E near a glowing resource.';
+  updateHUD(); resetPositions();
+  if (exploring && playerChar) playerChar.position.set(0, adventureWorld.heightAt(0, 0), 0);
+  beginCountdown();
 }
 
 document.querySelectorAll('.mode-btn').forEach((button) => button.addEventListener('click', () => startGame(button.dataset.mode)));
@@ -184,7 +188,8 @@ $('menu-btn').addEventListener('click', () => {
   $('endscreen').style.display = 'none'; $('menu').style.display = 'flex';
   $('hud').classList.add('hidden'); $('energy').classList.add('hidden'); $('touch-controls').classList.add('hidden');
   $('adventure-hud').classList.add('hidden'); $('gather-btn').classList.add('hidden');
-  arena.visible = true; if (ringMesh) ringMesh.visible = true; ballMesh.visible = true; aimGroup.visible = true;
+  arena.visible = true; fallbackDecor.visible = baseFallbackVisibility; if (ringMesh) ringMesh.visible = true; ballMesh.visible = true; aimGroup.visible = true;
+  $('hit-btn').classList.remove('hidden');
   if (aiChar) aiChar.visible = true;
 });
 
@@ -206,7 +211,8 @@ setupInput(canvas, camera, () => playerChar?.position, tryPlayerHit);
 function gatherNearby() {
   if (mode !== 'adventure' || phase !== 'playing' || !playerChar || !adventureWorld) return;
   const item = adventureWorld.harvest(playerChar.position, 3.2);
-  if (!item) { $('adventure-prompt').textContent = 'Nothing nearby. Find a glowing resource node.'; return; }
+  if (!item) { $('adventure-prompt').textContent = 'Nothing close enough. Move beside a glowing node.'; return; }
+  burst(playerChar.position.clone().add(new THREE.Vector3(0, 1.2, 0)), item === 'wood' ? 0xb8783e : item === 'stone' ? 0xaab2a5 : 0x8fcb55, 9);
   adventureInventory[item] = (adventureInventory[item] || 0) + 1;
   localStorage.setItem('sun-stone-jungle-inventory', JSON.stringify(adventureInventory));
   $('adventure-prompt').textContent = `Gathered 1 ${item}. Keep exploring!`;
@@ -319,6 +325,7 @@ function tick() {
   }
   if (mode !== 'adventure') { ballMesh.position.copy(ballState.pos); updateBallVisual(ballMesh, ballState.vel, dt); }
   if (mode !== 'adventure') updateCourt(arena, elapsed); updateParticles(dt); updateHUD();
+  if (playerChar && mode === 'adventure' && adventureWorld) playerChar.position.y = adventureWorld.heightAt(playerChar.position.x, playerChar.position.z);
   if (playerChar && mode !== 'adventure') {
     currentAimAngle = Input.mouseAimAngle;
     aimGroup.position.set(playerChar.position.x, .035, playerChar.position.z); aimGroup.rotation.y = currentAimAngle;
