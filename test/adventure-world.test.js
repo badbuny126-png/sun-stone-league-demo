@@ -34,3 +34,12 @@ test('terrain height stays finite and the river corridor is lower than the ruin 
   assert.ok(world.resources.length >= 24);
   world.dispose();
 });
+
+
+test('river blocks walking except at the stone crossing', () => {
+  const world = createAdventureWorld(new THREE.Scene(), 12);
+  assert.equal(world.canMoveTo(25, 8), false);
+  assert.equal(world.canMoveTo(25, 0), true);
+  assert.equal(world.canMoveTo(0, 0), true);
+  world.dispose();
+});
