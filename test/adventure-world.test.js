@@ -30,6 +30,7 @@ test('terrain height stays finite and the river corridor is lower than the ruin 
   const world = createAdventureWorld(new THREE.Scene(), 9);
   assert.ok(Number.isFinite(world.heightAt(0, 0)));
   assert.ok(world.heightAt(-25, -30) > world.heightAt(25, 0));
-  assert.ok(world.root.children.some((object) => object.name === ''));
+  assert.ok(world.root.children[0].geometry.attributes.position.count > 4000);
+  assert.ok(world.resources.length >= 30);
   world.dispose();
 });
