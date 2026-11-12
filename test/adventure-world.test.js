@@ -24,3 +24,12 @@ test('nearby resources can be harvested once', () => {
   assert.equal(world.harvest(position), null);
   world.dispose();
 });
+
+
+test('terrain height stays finite and the river corridor is lower than the ruin ridge', () => {
+  const world = createAdventureWorld(new THREE.Scene(), 9);
+  assert.ok(Number.isFinite(world.heightAt(0, 0)));
+  assert.ok(world.heightAt(-25, -30) > world.heightAt(25, 0));
+  assert.ok(world.root.children.some((object) => object.name === ''));
+  world.dispose();
+});
